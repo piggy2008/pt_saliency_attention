@@ -19,24 +19,40 @@ def test(test_dir, test_prior_dir, list_file_path, save_path):
     device = torch.device('cuda')
     model = VideoSaliency().to(device)
 
-    model.load_state_dict(torch.load('model/2018-08-22 18:04:08/6000/snap_model.pth'))
+    # sigmoid + bbox regression
+    # model.load_state_dict(torch.load('model/2018-08-26 17:11:03/6000/snap_model.pth'))
+    #  maybe it is the best one, bbox regression smoothl1 no pulishment
+    # result at total_result/result_rnn_2018-08-26 21:33:19
+
+    # sigmoid + bbox regression
+    # attention channel is 4, local pool4 and fc8 + additional rnn output
+    # model.load_state_dict(torch.load('model/2018-08-28 16:54:21/6000/snap_model.pth'))
+
+    # sigmoid + bbox regression
+    # attention channel is 6, local pool4 and fc8 + additional rnn output, c3d
+    # model.load_state_dict(torch.load('model/2018-08-29 09:56:15/10000/snap_model.pth'))
+
+    # test for every model
+    model.load_state_dict(torch.load('model/2018-08-29 09:56:15/10000/snap_model.pth'))
     model.eval()
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
     src_w = 0
     src_h = 0
+    size = 400
+    count = 0
     for name in test_names:
         images_path = name.split(',')
-        batch_x = np.zeros([4, 4, 480, 480])
-        batch_x_no_prior = np.zeros([4, 3, 480, 480])
+        batch_x = np.zeros([4, 4, size, size])
+        batch_x_no_prior = np.zeros([4, 3, size, size])
         for i, image_name in enumerate(images_path):
             image = Image.open(os.path.join(test_dir, image_name + '.jpg'))
             prior = Image.open(os.path.join(test_prior_dir, image_name + '.png'))
 
             src_w, src_h = image.size
 
-            image, prior = resize_image_prior(image, prior, 480)
+            image, prior = resize_image_prior(image, prior, size)
 
-            input_prior, input = preprocess(image, prior, 480)
+            input_prior, input = preprocess(image, prior, size)
 
             batch_x_no_prior[i] = input
             batch_x[i] = input_prior
@@ -47,9 +63,23 @@ def test(test_dir, test_prior_dir, list_file_path, save_path):
         x_prior = x_prior.type(torch.cuda.FloatTensor)
         # feed_dict = {self.X: batch_x_no_prior, self.X_prior: batch_x}
         start = time.clock()
-        saliency, _, _ = model(x, x_prior)
+        saliency, _, bbox = model(x, x_prior)
         saliency = F.sigmoid(saliency)
         end = time.clock()
+
+        count += 1
+
+        # if count == 15:
+        #     final_saliency = saliency.data.cpu().numpy()
+        #     plt.subplot(1, 2, 1)
+        #     plt.imshow(final_saliency[3, 0, :, :])
+        #
+        #
+        #     plt.subplot(1, 2, 2)
+        #     bbox = bbox.data.cpu().numpy() * 400
+        #     plt.imshow(final_saliency[3, 0, int(bbox[3, 0]):int(bbox[3, 2]), int(bbox[3, 1]):int(bbox[3, 3])])
+        #
+        #     plt.show()
 
         saliency = saliency.data.cpu().numpy()
         saliency = saliency * 255
@@ -65,11 +95,11 @@ def test(test_dir, test_prior_dir, list_file_path, save_path):
 
         save_img.save(image_path)
 
-        del batch_x
-        del batch_x_no_prior
-        del x
-        del x_prior
-        torch.cuda.empty_cache()
+        # del batch_x
+        # del batch_x_no_prior
+        # del x
+        # del x_prior
+        # torch.cuda.empty_cache()
 
 
         # batch_x_no_prior = batch_x_no_prior.transpose([0, 2, 3, 1])
@@ -85,14 +115,14 @@ def test(test_dir, test_prior_dir, list_file_path, save_path):
 if __name__ == '__main__':
     # test dir
     # FBMS
-    test_dir = '/home/ty/data/FBMS/FBMS_Testset'
-    test_prior_dir = '/home/ty/data/FBMS/FBMS_Testset_flow_prior'
-    list_file_path = '/home/ty/data/FBMS/FBMS_seq_file.txt'
+    # test_dir = '/home/ty/data/FBMS/FBMS_Testset'
+    # test_prior_dir = '/home/ty/data/FBMS/FBMS_Testset_flow_prior'
+    # list_file_path = '/home/ty/data/FBMS/FBMS_seq_file.txt'
 
     # DAVIS
-    # test_dir = '/home/ty/data/davis/davis_test'
-    # test_prior_dir = '/home/ty/data/davis/davis_flow_prior'
-    # list_file_path = '/home/ty/data/davis/davis_test_seq.txt'
+    test_dir = '/home/ty/data/davis/davis_test'
+    test_prior_dir = '/home/ty/data/davis/davis_flow_prior'
+    list_file_path = '/home/ty/data/davis/davis_test_seq.txt'
 
     save_path = 'total_result/result_rnn'
 

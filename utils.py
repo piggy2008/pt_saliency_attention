@@ -4,6 +4,8 @@ import cv2
 import scipy.io as sio
 import struct
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import math
 import torch
 
 def resize_image_prior(image, prior, input_size=512):
@@ -90,6 +92,10 @@ def load_part_of_model(new_model, src_model_path):
         if k.find('attention') >= 0:
             print('override attention')
 
+        # elif k.find('norm') >= 0:
+        #     print('override convlstm norm')
+        # elif k.find('loc_estimate') >= 0:
+        #     print('override loc_estimate')
         else:
             param = src_model.get(k)
             m_dict[k].data = param
@@ -100,7 +106,8 @@ def load_part_of_model(new_model, src_model_path):
 
 def freeze_some_layers(model):
     for child in model.named_children():
-        if child[0].find('fc8') >= 0:
+        if child[0].find('fc') >= 0 or child[0].find('attention') >= 0 \
+                or child[0].find('loc_estimate') >= 0:
             print(child[0] + ' not froze')
             continue
         else:
@@ -109,6 +116,19 @@ def freeze_some_layers(model):
                 param.requires_grad = False
 
     return model
+
+def gaussian_mask(center_x, center_y, sigma=0.25):
+
+    x = np.arange(0, 1, 0.0025)
+    y = np.arange(0, 1, 0.0025)
+    x, y = np.meshgrid(x, y)
+    z = np.exp(-((x - center_x) ** 2 + (y - center_y) ** 2) / (sigma ** 2))
+
+    # plt.figure()
+    #
+    # plt.imshow(z, plt.cm.gray)
+    # plt.show()
+    return z
 
 if __name__ == '__main__':
     # img = cv2.imread('Comp_195.bmp')
@@ -122,15 +142,16 @@ if __name__ == '__main__':
     #     print(random.randint(0,2))
     # print (weight[3, :, :, 1])
 
-    from models import VideoSaliency
-
-    model = VideoSaliency()
+    # from models import VideoSaliency
+    #
+    # model = VideoSaliency()
     #
     # h5_path = '/home/ty/code/tf_saliency_attention/mat_parameter/fusionST_parameter_ms.mat'
     #
     # load_weights_from_h5(model, h5_path)
 
-    load_part_of_model(model, 'model/2018-08-20 21:35:07/26000/snap_model.pth')
+    # load_part_of_model(model, 'model/2018-08-20 21:35:07/26000/snap_model.pth')
+    gaussian_mask()
 
 
 

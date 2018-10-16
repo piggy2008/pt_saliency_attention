@@ -8,6 +8,8 @@ from utils import load_weights_from_h5, load_part_of_model, freeze_some_layers
 import os
 from matplotlib import pyplot as plt
 
+
+
 def train(train_dir, label_dir, prior_dir, list_file_path):
     list_file = open(list_file_path)
     image_names = [line.strip() for line in list_file]
@@ -15,21 +17,29 @@ def train(train_dir, label_dir, prior_dir, list_file_path):
     # dataset = ImageData(image_dir, label_dir, '.jpg', '.png', 550, 512, 1, horizontal_flip=True)
     dataset = ImageAndPriorSeqBboxData(train_dir, label_dir, prior_dir, None, None,
                                    None,
-                                   image_names, None, '.jpg', '.png', 512, 480, 1,
+                                   image_names, None, '.jpg', '.png', 430, 400, 1,
                                    4,
-                                   horizontal_flip=False)
+                                   horizontal_flip=False, pulishment=False)
 
     time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     log_loss = []
 
-    log_loss.append('image size:512 \n')
-    log_loss.append('crop size:480 \n')
-    log_loss.append('freeze layers except after conv5 \n')
+    log_loss.append('image size:430 \n')
+    log_loss.append('crop size:400 \n')
+    # log_loss.append('freeze layers except after conv5 \n')
     log_loss.append('only smoothl1 loss \n')
+    log_loss.append('only sigmoid cross entropy loss \n')
+    log_loss.append('No bbox publishment \n')
+    log_loss.append('gaussian sigma:0.45 \n')
     # log_loss.append(self.prior_type + '\n')
     device = torch.device('cuda')
     model = VideoSaliency().to(device)
-    model.load_state_dict(torch.load('model/2018-08-22 18:04:08/6000/snap_model.pth'))
+    model.load_state_dict(torch.load('model/2018-08-29 09:56:15/6000/snap_model.pth'))
+    # model.load_state_dict(torch.load('model/2018-08-31 09:32:41/8000/snap_model.pth'))
+
+    # model = load_part_of_model(model, 'model/2018-08-29 09:56:15/10000/snap_model.pth')
+    # model.load_state_dict(torch.load('model/2018-08-26 10:20:23/6000/snap_model.pth'))
+    # model.load_state_dict(torch.load('model/2018-08-26 17:11:03/6000/snap_model.pth'))
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
     # model = freeze_some_layers(model)
 
@@ -41,8 +51,8 @@ def train(train_dir, label_dir, prior_dir, list_file_path):
     # model.load_state_dict(torch.load('model/2018-08-23 13:02:15/6000/snap_model.pth'))
     # training sigmoid cross entropy
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.0001)
 
 
     # load model from h5 file
@@ -53,7 +63,7 @@ def train(train_dir, label_dir, prior_dir, list_file_path):
 
 
     model.train()
-    for itr in range(16001):
+    for itr in range(4001):
         x, y, bbox = dataset.next_batch()
         # feed_dict = {self.X: x[:, :, :, :3], self.X_prior: x, self.Y: y}
         x_prior = torch.from_numpy(x)
@@ -66,10 +76,37 @@ def train(train_dir, label_dir, prior_dir, list_file_path):
         y = y.type(torch.cuda.FloatTensor)
         bbox = bbox.type(torch.cuda.FloatTensor)
 
-        final_saliency, rnn_output, local_pos = model(x, x_prior)
+        final_saliency, cap_feats, local_pos = model(x, x_prior)
+        # final_saliency, cap_feats, local_pos, cap_feats2 = model(x, x_prior)
         train_loss1 = criterion(final_saliency, y)
         train_loss2 = criterion_regression(local_pos, bbox)
 
+        # print(local_pos)
+        # print(bbox)
+        # final_saliency = F.sigmoid(final_saliency)
+        # final_saliency = final_saliency.data.cpu().numpy()
+        #
+        # plt.subplot(2, 3, 1)
+        # plt.imshow(final_saliency[3, 0, :, :])
+        #
+        # local_pos = local_pos.data.cpu().numpy() * 400
+        # plt.subplot(2, 3, 2)
+        # plt.imshow(final_saliency[3, 0, int(local_pos[3, 0]):int(local_pos[3, 2]), int(local_pos[3, 1]):int(local_pos[3, 3])])
+        #
+        # plt.subplot(2, 3, 3)
+        # bbox = bbox.data.cpu().numpy() * 400
+        # plt.imshow(final_saliency[3, 0, int(bbox[3, 0]):int(bbox[3, 2]), int(bbox[3, 1]):int(bbox[3, 3])])
+        #
+        # plt.subplot(2, 3, 4)
+        # cap_feats = cap_feats.data.cpu().numpy()
+        # plt.imshow(cap_feats[3, 0, :, :])
+        #
+        # plt.subplot(2, 3, 5)
+        # cap_feats2 = cap_feats2.data.cpu().numpy()
+        # plt.imshow(cap_feats2[3, 0, :, :])
+        # plt.show()
+
+        # loss = train_loss2
         loss = train_loss1 + train_loss2
         model.zero_grad()
         loss.backward()

@@ -5,7 +5,7 @@ from cell import ConvLSTM
 import numpy as np
 from utils import gaussian_mask
 
-
+# the best for now
 class VideoSaliency(nn.Module):
     def __init__(self):
         super(VideoSaliency, self).__init__()
@@ -74,8 +74,8 @@ class VideoSaliency(nn.Module):
 
         self.loc_estimate = nn.Linear(2500, 4)
 
-        self.attention_first = nn.Conv2d(6, 256, kernel_size=3, padding=(1, 1) )
-        self.attention_second = nn.Conv2d(256, 6, kernel_size=1 )
+        self.attention_first = nn.Conv2d(5, 256, kernel_size=3, padding=(1, 1) )
+        self.attention_second = nn.Conv2d(256, 5, kernel_size=1 )
 
     def forward(self, input, input_prior):
 
@@ -158,10 +158,10 @@ class VideoSaliency(nn.Module):
         rnn_list, state = self.convLSTM(rnn_inputs)
         rnn_output = rnn_list[0].squeeze(0)
 
-        c3d_inputs = rnn_inputs.transpose(1, 2)
-        c3d_output = self.c3d(c3d_inputs)
-        c3d_output = c3d_output.transpose(1, 2)
-        c3d_output = c3d_output.squeeze(0)
+        # c3d_inputs = rnn_inputs.transpose(1, 2)
+        # c3d_output = self.c3d(c3d_inputs)
+        # c3d_output = c3d_output.transpose(1, 2)
+        # c3d_output = c3d_output.squeeze(0)
 
         pool4_saliency_cancat = torch.cat((branch_pool4, branch_pool4_r2), 1)
         pool4_saliency_ST = self.pool4_saliency_ST(pool4_saliency_cancat)
@@ -188,8 +188,8 @@ class VideoSaliency(nn.Module):
         # local_rnn_output = torch.mul(rnn_output, cap_feats)
         local_saliency = torch.cat((local_poo4_ST, local_fc8_ST), 1)
 
-        final_saliency = torch.cat((global_saliency, local_saliency, rnn_output, c3d_output), 1)
-
+        # final_saliency = torch.cat((global_saliency, local_saliency, rnn_output, c3d_output), 1)
+        final_saliency = torch.cat((global_saliency, local_saliency, rnn_output), 1)
         #channel-wise attention
         atten_weights = F.relu(self.attention_first(final_saliency))
         atten_weights = F.softmax(self.attention_second(atten_weights))
@@ -252,12 +252,12 @@ class VideoSaliency(nn.Module):
                 center_x = (point[3] - point[1]) / 2 + point[1]
                 center_y = (point[2] - point[0]) / 2 + point[0]
                 print('center point:(' + str(center_x) + ',' + str(center_y) + ')')
-                cap_map = gaussian_mask(center_x, center_y, sigma=0.75)
+                cap_map = gaussian_mask(center_x, center_y, sigma=0.25)
                 # cap_map = np.pad(cap_map, ([point[0], size - point[2]], [point[1], size - point[3]]), 'constant')
                 cap_map_batch[i, 0, :, :] = cap_map
             else:
                 # not suitable, choose center gaussian
-                cap_map = gaussian_mask(0.5, 0.5, sigma=0.75)
+                cap_map = gaussian_mask(0.5, 0.5, sigma=0.25)
                 # cap_map = np.pad(cap_map, ([int(size / 4), int(size / 4)], [int(size / 4), int(size / 4)]), 'constant')
                 cap_map_batch[i, 0, :, :] = cap_map
 
