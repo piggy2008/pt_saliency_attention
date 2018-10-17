@@ -199,6 +199,9 @@ def train_PSPNetBase(root_dir, list_file_path):
             save_model(model, str(itr), time_str, log_loss)
             del log_loss[:]
 
+    print('finish training time:', str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+
+
 def save_model(model, itr, network_name, log_list=[]):
     model_dir = os.path.join('model', network_name, itr)
     if not os.path.exists(model_dir):
