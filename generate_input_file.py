@@ -2,6 +2,7 @@ import os
 from PIL import Image
 import cv2
 import numpy as np
+import glob
 
 path = '/home/ty/data/video_saliency/train_all_gt2_revised'
 save_path = '/home/ty/data/video_saliency/train_all_seq_bbox.txt'
@@ -91,8 +92,47 @@ def gt_generate():
 
             cv2.imwrite(os.path.join(save_path, folder, image), img)
 
+def generate_MSRA10K(root):
+    names = os.listdir(os.path.join(root, 'MSRA10K_Imgs_GT', 'Imgs'))
+    names.sort()
+
+    save_path = '/home/ty/data/Pre-train/pretrain_all_seq.txt'
+    file = open(save_path, 'w')
+    for name in names:
+        # print (os.path.join(root, 'Imgs', name[:-4] + '.png'))
+        # cv2.imread(os.path.join(root, 'GT', name[:-4] + '.png'))
+        line = os.path.join('MSRA10K_Imgs_GT', 'Imgs', name) + ' ' + os.path.join('MSRA10K_Imgs_GT', 'GT', name[:-4] + '.png')
+        print (line)
+        file.writelines(line + '\n')
+
+    file.close()
+    print(len(names))
+
+def generate_THUR15K(root):
+    folders = os.listdir(os.path.join(root, 'THUR15000'))
+    # names.sort()
+
+    save_path = '/home/ty/data/Pre-train/pretrain_all_seq2.txt'
+    file = open(save_path, 'w')
+    for folder in folders:
+        names = os.listdir(os.path.join(root, 'THUR15000', folder, 'GT'))
+        # cv2.imread(os.path.join(root, 'GT', name[:-4] + '.png'))
+        for name in names:
+
+            line = os.path.join('THUR15000', folder, 'Src', name[:-4] + '.jpg') + ' ' + os.path.join('THUR15000', folder, 'GT', name)
+            print (line)
+            print(os.path.exists(os.path.join(root, 'THUR15000', folder, 'Src', name[:-4] + '.jpg')))
+            print(os.path.exists(os.path.join(root, 'THUR15000', folder, 'GT', name)))
+
+            file.writelines(line + '\n')
+
+    file.close()
+    # print(len(names))
+
+
 # generate_one()
 
-generate_seq_gt_box()
+# generate_MSRA10K('/home/ty/data/Pre-train')
+generate_THUR15K('/home/ty/data/Pre-train')
 # change_suffix()
 # generate_seq()

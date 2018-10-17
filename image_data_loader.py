@@ -373,6 +373,75 @@ class ImageAndPriorSeqData(ImageData):
 
             return batch_x, batch_y
 
+class ImageDataPretrain(ImageData):
+    def __init__(self, root_dir, image_names, image_size, crop_size, batch_size, horizontal_flip=False):
+        self.root_dir = root_dir
+        self.image_size = image_size
+        self.crop_size = crop_size
+        self.horizontal_flip = horizontal_flip
+        self.batch_size = batch_size
+        self.image_names = image_names
+        self._load_image_name()
+        self._reset_batch_offset()
+        random.shuffle(self.image_names)
+
+    def _load_image_name(self):
+        self.num_of_image = len(self.image_names)
+
+    def next_batch(self):
+        start = self.batch_offset
+        self.batch_offset += self.batch_size
+        if self.batch_offset > self.num_of_image:
+            random.shuffle(self.image_names)
+            start = 0
+            self.batch_offset = self.batch_size
+
+        end = self.batch_offset
+        # print start, '---', end
+        if self.crop_size:
+            batch_x = np.zeros([self.batch_size, self.crop_size, self.crop_size, 3], dtype=np.float32)
+            batch_y = np.zeros([self.batch_size, self.crop_size, self.crop_size, 1], dtype=np.float32)
+        else:
+            batch_x = np.zeros([self.batch_size, self.image_size, self.image_size, 3], dtype=np.float32)
+            batch_y = np.zeros([self.batch_size, self.image_size, self.image_size, 1], dtype=np.float32)
+        count = 0
+        for index in range(start, end):
+            # print label_path
+            images_path = self.image_names[index].split(' ')
+
+
+            image_path = os.path.join(self.root_dir, images_path[0])
+            label_path = os.path.join(self.root_dir, images_path[1])
+
+
+            image = cv2.imread(image_path)
+            label = cv2.imread(label_path, 0)
+
+            image = cv2.resize(image, (self.image_size, self.image_size), interpolation=cv2.INTER_LINEAR)
+            label = cv2.resize(label, (self.image_size, self.image_size), interpolation=cv2.INTER_LINEAR)
+
+            x = image.astype(dtype=np.float32)
+            x = self._preprocess(x)
+
+            y = label.astype(dtype=np.float32)
+            y[np.where(y > 100)] = 255
+            y[np.where(y <= 100)] = 0
+            y /= 255
+            y = y.astype(np.uint8)
+            y = y.reshape((y.shape[0], y.shape[1], 1))
+            if self.crop_size:
+                x, y = self._crop_image(x, y, (self.crop_size, self.crop_size))
+            if self.horizontal_flip:
+                x, y = self._flip_image(x, y)
+
+            batch_x[count] = x
+            batch_y[count] = y
+            count += 1
+
+        batch_x = batch_x.transpose([0, 3, 1, 2])
+        batch_y = batch_y.transpose([0, 3, 1, 2])
+        return batch_x, batch_y
+
 
 class ImageAndFlowSeqData(ImageData):
     def __init__(self, image_dir, label_dir, flow_dir, validate_image_dir, validate_label_dir, validate_flow_dir,
@@ -900,6 +969,14 @@ class ImageAndPriorSeqCenterPData(ImageData):
                 count += 1
 
             return batch_x, batch_y
+
+if __name__ == '__main__':
+    root_dir = '/home/ty/data/Pre-train'
+    list_file = open('/home/ty/data/Pre-train/pretrain_all_seq.txt')
+    image_names = [line.strip() for line in list_file]
+    # (self, root_dir, image_names, image_size, crop_size, batch_size, seq_size, horizontal_flip=False):
+    dataset = ImageDataPretrain(root_dir, image_names, 550, 512, 5, horizontal_flip=True)
+    x, y = dataset.next_batch()
 
 
 
