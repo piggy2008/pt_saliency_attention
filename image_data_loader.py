@@ -976,7 +976,9 @@ if __name__ == '__main__':
     image_names = [line.strip() for line in list_file]
     # (self, root_dir, image_names, image_size, crop_size, batch_size, seq_size, horizontal_flip=False):
     dataset = ImageDataPretrain(root_dir, image_names, 550, 512, 5, horizontal_flip=True)
-    x, y = dataset.next_batch()
+    for i in range(20000):
+        print ('iterater:', i)
+        x, y = dataset.next_batch()
 
 
 
