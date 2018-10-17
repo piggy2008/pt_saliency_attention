@@ -138,13 +138,16 @@ def train_PSPNetBase(root_dir, list_file_path):
     time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     log_loss = []
 
-    log_loss.append('image size:430 \n')
-    log_loss.append('crop size:400 \n')
+    log_loss.append('image size:550 \n')
+    log_loss.append('crop size:512 \n')
     # log_loss.append('freeze layers except after conv5 \n')
-    log_loss.append('only smoothl1 loss \n')
+    # log_loss.append('only smoothl1 loss \n')
     log_loss.append('only sigmoid cross entropy loss \n')
-    log_loss.append('No bbox publishment \n')
-    log_loss.append('gaussian sigma:0.45 \n')
+    log_loss.append('base network pspnet \n')
+    log_loss.append('pre-trained model, resnet no 1024c block \n')
+    # log_loss.append('pre-trained model, resnet no 1024c block \n')
+    # log_loss.append('No bbox publishment \n')
+    # log_loss.append('gaussian sigma:0.45 \n')
     # log_loss.append(self.prior_type + '\n')
     device = torch.device('cuda')
     model = PSPNet(n_classes=1, backend='resnet50').to(device)
@@ -174,8 +177,8 @@ def train_PSPNetBase(root_dir, list_file_path):
         x = x.type(torch.cuda.FloatTensor)
         y = y.type(torch.cuda.FloatTensor)
 
-        final_saliency, top = model(x)
-        saliency = final_saliency.data.cpu().numpy()
+        final_saliency = model(x)
+        # saliency = final_saliency.data.cpu().numpy()
         # final_saliency, cap_feats, local_pos, cap_feats2 = model(x, x_prior)
         train_loss1 = criterion(final_saliency, y)
 
@@ -192,7 +195,7 @@ def train_PSPNetBase(root_dir, list_file_path):
             # summary_writer.add_summary(summary_str, itr)
 
 
-        if itr % 2000 == 0:
+        if itr % 5000 == 0:
             save_model(model, str(itr), time_str, log_loss)
             del log_loss[:]
 

@@ -55,7 +55,7 @@ class PSPNet(nn.Module):
         self.drop_2 = nn.Dropout2d(p=0.15)
         self.final = nn.Sequential(
             nn.Conv2d(64, n_classes, kernel_size=1),
-            nn.LogSoftmax()
+            # nn.LogSoftmax()
         )
 
         self.classifier = nn.Sequential(
@@ -81,4 +81,4 @@ class PSPNet(nn.Module):
         # auxiliary = F.adaptive_max_pool2d(input=class_f, output_size=(1, 1)).view(-1, class_f.size(1))
 
         # return self.final(p), self.classifier(auxiliary)
-        return self.final(p), f
+        return self.final(p)
