@@ -7,6 +7,7 @@ from models import VideoSaliency
 from models_pspnet import PSPNet
 from utils import load_weights_from_h5, load_part_of_model, freeze_some_layers
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from matplotlib import pyplot as plt
 import numpy as np
 
