@@ -22,11 +22,11 @@ def load_weights_sequential(target, source_state):
     Implementation of dilated ResNet-101 with deep supervision. Downsampling is changed to 8x
 '''
 model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+    'resnet18': 'https://download.pytorch.org/models_base/resnet18-5c106cde.pth',
+    'resnet34': 'https://download.pytorch.org/models_base/resnet34-333f7ec4.pth',
+    'resnet50': 'https://download.pytorch.org/models_base/resnet50-19c8e357.pth',
+    'resnet101': 'https://download.pytorch.org/models_base/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models_base/resnet152-b121ed2d.pth',
 }
 
 
@@ -352,7 +352,7 @@ def resnet50(pretrained=True):
     if pretrained:
         # load_weights_sequential(model, model_zoo.load_url(model_urls['resnet50']))
         # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-        model_path = '/home/ty/.torch/models/resnet50-19c8e357.pth'
+        model_path = '/home/ty/.torch/models_base/resnet50-19c8e357.pth'
         model = load_part_of_model_resnet(model, model_path)
     return model
 
@@ -377,5 +377,5 @@ def dpn68_warp(pretrained=True):
 
 
 if __name__ == '__main__':
-    # resnet50('/home/ty/.torch/models/resnet50-19c8e357.pth')
+    # resnet50('/home/ty/.torch/models_base/resnet50-19c8e357.pth')
     dpn68_warp(pretrained=True)

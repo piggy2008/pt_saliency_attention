@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from image_data_loader import ImageAndPriorSeqData
 import time
-from models import VideoSaliency
+from models_base import VideoSaliency
 
 
 if __name__ == '__main__':

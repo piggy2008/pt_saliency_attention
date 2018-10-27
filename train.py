@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from image_data_loader import ImageAndPriorSeqBboxData, ImageDataPretrain
 import time
-from models import VideoSaliency
+from models_base import VideoSaliency
 from models_pspnet import PSPNet
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'

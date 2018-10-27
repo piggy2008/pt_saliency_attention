@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import time
-from models import VideoSaliency
+from models_base import VideoSaliency
 from tools.utils import preprocess, resize_image_prior
 import os
 import numpy as np
