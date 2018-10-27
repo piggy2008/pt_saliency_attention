@@ -65,7 +65,7 @@ class PSPNet(nn.Module):
         )
 
     def forward(self, x):
-        f, class_f = self.feats(x)
+        f = self.feats(x)
         p = self.psp(f)
         p = self.drop_1(p)
 

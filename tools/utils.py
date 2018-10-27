@@ -124,6 +124,27 @@ def load_part_of_model_resnet(new_model, src_model_path):
     new_model.load_state_dict(m_dict)
     return new_model
 
+def load_part_of_model_decode(new_model, src_model_path):
+    src_model = torch.load(src_model_path)
+    m_dict = new_model.state_dict()
+    for k in src_model.keys():
+        print (k)
+        if k.find('last.4') >= 0 or k.find('last_deepsup') >= 0:
+            param = src_model.get(k)
+            print('new model param shape:', np.shape(m_dict[k].data))
+            print('override and shape:', np.shape(param))
+        # elif k.find('norm') >= 0:
+        #     print('override convlstm norm')
+        # elif k.find('loc_estimate') >= 0:
+        #     print('override loc_estimate')
+        else:
+            param = src_model.get(k)
+            m_dict[k].data = param
+
+
+    new_model.load_state_dict(m_dict)
+    return new_model
+
 def freeze_some_layers(model):
     for child in model.named_children():
         if child[0].find('fc') >= 0 or child[0].find('attention') >= 0 \

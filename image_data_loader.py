@@ -1,13 +1,10 @@
 import numpy as np
-import tensorflow as tf
 import os
 from PIL import Image
-from matplotlib import pyplot as plt
 # import matplotlib
 # matplotlib.use('GTKAgg')
 import random
 import cv2
-from utils import gaussian_mask
 
 
 class ImageData(object):

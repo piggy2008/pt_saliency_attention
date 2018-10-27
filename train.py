@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from image_data_loader import ImageAndPriorSeqData, ImageAndPriorSeqBboxData, ImageDataPretrain
+from image_data_loader import ImageAndPriorSeqBboxData, ImageDataPretrain
 import time
 from models import VideoSaliency
 from models_pspnet import PSPNet
-from utils import load_weights_from_h5, load_part_of_model, freeze_some_layers
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-from matplotlib import pyplot as plt
-import numpy as np
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 def train(train_dir, label_dir, prior_dir, list_file_path):
@@ -128,7 +125,7 @@ def train(train_dir, label_dir, prior_dir, list_file_path):
             save_model(model, str(itr), time_str, log_loss)
             del log_loss[:]
 
-def train_PSPNetBase(root_dir, list_file_path):
+def train_PSPNetBase(root_dir, list_file_path, model_base='resnet50'):
     # root_dir = '/home/ty/data/Pre-train'
     # list_file = open('/home/ty/data/Pre-train/pretrain_all_seq.txt')
     image_names = [line.strip() for line in list_file_path]
@@ -138,7 +135,7 @@ def train_PSPNetBase(root_dir, list_file_path):
 
     time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     log_loss = []
-
+    log_loss.append('feature extractor:'+ model_base + '\n')
     log_loss.append('image size:550 \n')
     log_loss.append('crop size:512 \n')
     # log_loss.append('freeze layers except after conv5 \n')
@@ -151,7 +148,10 @@ def train_PSPNetBase(root_dir, list_file_path):
     # log_loss.append('gaussian sigma:0.45 \n')
     # log_loss.append(self.prior_type + '\n')
     device = torch.device('cuda')
-    model = PSPNet(n_classes=1, backend='resnet50').to(device)
+    if model_base == 'dpn':
+        model = PSPNet(n_classes=1, psp_size=832, backend='dpn68_warp').to(device)
+    else:
+        model = PSPNet(n_classes=1, backend='resnet50').to(device)
     # training smooth l1 loss
     # criterion_regression = nn.SmoothL1Loss()
 
@@ -169,16 +169,18 @@ def train_PSPNetBase(root_dir, list_file_path):
 
 
     model.train()
-    for itr in range(50001):
+    for itr in range(100001):
         x, y = dataset.next_batch()
 
         x = torch.from_numpy(x)
         y = torch.from_numpy(y)
 
         x = x.type(torch.cuda.FloatTensor)
-        y = y.type(torch.cuda.FloatTensor)
+        y = y.type(torch.cuda.LongTensor)
 
         final_saliency = model(x)
+        if model_base == 'dpn':
+            final_saliency = F.upsample(input=final_saliency, size=(512, 512), mode='bilinear')
         # saliency = final_saliency.data.cpu().numpy()
         # final_saliency, cap_feats, local_pos, cap_feats2 = model(x, x_prior)
         train_loss1 = criterion(final_saliency, y)
@@ -196,7 +198,7 @@ def train_PSPNetBase(root_dir, list_file_path):
             # summary_writer.add_summary(summary_str, itr)
 
 
-        if itr % 5000 == 0:
+        if itr % 20000 == 0:
             save_model(model, str(itr), time_str, log_loss)
             del log_loss[:]
 
@@ -231,4 +233,4 @@ if __name__ == '__main__':
 
     root_dir = '/home/ty/data/Pre-train'
     list_file_path = open('/home/ty/data/Pre-train/pretrain_all_seq.txt')
-    train_PSPNetBase(root_dir, list_file_path)
+    train_PSPNetBase(root_dir, list_file_path, model_base='dpn')

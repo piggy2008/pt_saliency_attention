@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from cell import ConvLSTM
 import numpy as np
-from utils import gaussian_mask
+from tools.utils import gaussian_mask
 
 
 class VideoSaliency(nn.Module):

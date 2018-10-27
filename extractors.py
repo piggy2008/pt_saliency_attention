@@ -5,10 +5,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import model_zoo
-from torchvision.models.densenet import densenet121, densenet161
+from torchvision.models.densenet import densenet121
 from torchvision.models.squeezenet import squeezenet1_1
-from utils import load_part_of_model_resnet
-
+from tools.utils import load_part_of_model_resnet
+from dpn import dpn68
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def load_weights_sequential(target, source_state):
     new_dict = OrderedDict()
@@ -153,7 +155,7 @@ class ResNet(nn.Module):
         x_3 = self.layer3(x)
         x = self.layer4(x_3)
 
-        return x, x_3
+        return x
 
 
 '''
@@ -350,8 +352,8 @@ def resnet50(pretrained=True):
     if pretrained:
         # load_weights_sequential(model, model_zoo.load_url(model_urls['resnet50']))
         # model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-        model_path = 'pretrained_resnet/resnet50-19c8e357.pth'
-        load_part_of_model_resnet(model, model_path)
+        model_path = '/home/ty/.torch/models/resnet50-19c8e357.pth'
+        model = load_part_of_model_resnet(model, model_path)
     return model
 
 
@@ -368,6 +370,12 @@ def resnet152(pretrained=True):
         load_weights_sequential(model, model_zoo.load_url(model_urls['resnet152']))
     return model
 
+def dpn68_warp(pretrained=True):
+    model = dpn68(num_classes=1000, pretrained=pretrained, test_time_pool=True)
+    return model
+
+
 
 if __name__ == '__main__':
-    resnet50('/home/ty/.torch/models/resnet50-19c8e357.pth')
+    # resnet50('/home/ty/.torch/models/resnet50-19c8e357.pth')
+    dpn68_warp(pretrained=True)

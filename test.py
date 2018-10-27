@@ -1,12 +1,9 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from image_data_loader import ImageAndPriorSeqData
 import time
 from models import VideoSaliency
-from utils import preprocess, resize_image_prior, load_part_of_model
+from tools.utils import preprocess, resize_image_prior
 import os
-from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
