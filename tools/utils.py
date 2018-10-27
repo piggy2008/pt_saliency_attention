@@ -183,7 +183,7 @@ if __name__ == '__main__':
     #     print(random.randint(0,2))
     # print (weight[3, :, :, 1])
 
-    # from models import VideoSaliency
+    # from models_base import VideoSaliency
     #
     # model = VideoSaliency()
     #
