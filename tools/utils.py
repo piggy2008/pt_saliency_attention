@@ -42,6 +42,17 @@ def preprocess2(image, input_shape=512):
     input[:w, :h, :] = x
     return input[np.newaxis, ...]
 
+def preprocess3(image):
+    x = np.array(image, dtype=np.float32)
+    x = x[:, :, ::-1]
+    mean = (104.00699, 116.66877, 122.67892)
+    mean = np.array(mean, dtype=np.float32)
+    x = (x - mean)
+    # w, h, _ = x.shape
+    # input = np.zeros([input_shape, input_shape, 3], dtype=np.float32)
+    # input[:w, :h, :] = x
+    return x[np.newaxis, ...]
+
 def load_weights_from_h5(model, h5_path):
     m_dict = model.state_dict()
     parameter = sio.loadmat(h5_path)
