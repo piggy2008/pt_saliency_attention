@@ -1,32 +1,36 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from image_data_loader import ImageDataPretrain
+from image_data_loader import ImageDataPretrain, ImageSeqData
 import time
 from models_pspnet import PSPNet
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from models_base import ModelBuilder, SegmentationModule
 from tools.training_tools import adjust_learning_rate, create_optimizers
+from tools.utils import load_part_of_model_PSP_whole
 
 def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
     param = {}
-    param['lr_encode'] = 0.0001
-    param['lr_decode'] = 0.0001
-    param['momentum'] = 0.9
+    param['lr_encode'] = 0.0005
+    param['lr_decode'] = 0.0005
+    param['momentum'] = 0.95
     param['beta1'] = 0.9
     param['weight_decay'] = 1e-4
-    param['max_iters'] = 10000
+    param['max_iters'] = 40000
     param['lr_pow'] = 0.9
-    param['total_iters'] = 50001
-    param['save_iters'] = 10000
+    param['total_iters'] = 100001
+    param['save_iters'] = 20000
 
     param['running_lr_encoder'] = param['lr_encode']
     param['running_lr_decoder'] = param['lr_decode']
 
+    param['pretrained_model'] = 'model/2018-10-28 10:06:58/100000/snap_model.pth'
+
     image_names = [line.strip() for line in list_file_path]
     # (self, root_dir, image_names, image_size, crop_size, batch_size, seq_size, horizontal_flip=False):
-    dataset = ImageDataPretrain(root_dir, image_names, 530, 512, 5, horizontal_flip=True)
+    dataset = ImageSeqData(root_dir, root_dir + '_gt2_revised', image_names,
+                           '.jpg', '.png', 530, 512, 1, 5, horizontal_flip=False)
 
     time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     log_loss = []
@@ -37,8 +41,9 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
     # log_loss.append('only smoothl1 loss \n')
     log_loss.append('only sigmoid cross entropy loss \n')
     log_loss.append('base network pspnet \n')
-    log_loss.append('pre-trained model: model/2018-10-19 18:55:44/200000/snap_model.pth \n')
-    log_loss.append('start lr: 0.0001\n')
+    log_loss.append('pre-trained model: ' + param['pretrained_model'] + '\n')
+    log_loss.append('start lr: ' + str(param['lr_encode']) + '\n')
+    log_loss.append('momentum: ' + str(param['momentum']) + '\n')
 
     device = torch.device('cuda')
 
@@ -51,7 +56,7 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
         arch='ppm_bilinear_deepsup',
         fc_dim=2048,
         num_class=1,
-        weights='weights_base/decoder_epoch_20.pth',
+        # weights='weights_base/decoder_epoch_20.pth',
         use_softmax=False)
 
     crit = nn.BCEWithLogitsLoss()
@@ -59,8 +64,8 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
     nets = (net_encoder, net_decoder, crit)
 
     model = SegmentationModule(net_encoder, net_decoder, crit, deep_sup_scale=0.4).to(device)
-    model.load_state_dict(torch.load('model/2018-10-19 18:55:44/200000/snap_model.pth'))
-
+    # model.load_state_dict(torch.load('model/2018-10-26 22:11:34/50000/snap_model.pth'))
+    model = load_part_of_model_PSP_whole(model, 'model/2018-10-26 22:11:34/50000/snap_model.pth')
     optimizers = create_optimizers(nets, param)
 
     model.train()
@@ -211,6 +216,11 @@ if __name__ == '__main__':
     # list_file_path = '/home/ty/data/video_saliency/train_all_seq_bbx.txt'
     # train(image_dir, label_dir, prior_dir, list_file_path)
 
-    root_dir = '/home/ty/data/Pre-train'
-    list_file_path = open('/home/ty/data/Pre-train/pretrain_all_seq.txt')
+    # single frame to training
+    # root_dir = '/home/ty/data/video_saliency'
+    # list_file_path = open('/home/ty/data/video_saliency/train_all_single_frame.txt')
+
+    # video sequences to training
+    root_dir = '/home/ty/data/video_saliency/train_all'
+    list_file_path = open('/home/ty/data/video_saliency/train_all_seq_5f.txt')
     finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path)

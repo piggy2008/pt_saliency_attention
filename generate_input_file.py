@@ -5,14 +5,14 @@ import numpy as np
 import glob
 
 path = '/home/ty/data/video_saliency/train_all_gt2_revised'
-save_path = '/home/ty/data/video_saliency/train_all_seq_bbox.txt'
+save_path = '/home/ty/data/video_saliency/train_all_seq_5f.txt'
 # path = '/home/ty/data/davis/davis_test'
 # save_path = '/home/ty/data/davis/davis_test_seq.txt'
 # save_path = '/home/ty/data/video_saliency/train_all_seq.txt'
 folders = os.listdir(path)
 file = open(save_path, 'w')
 
-batch = 4
+batch = 5
 
 def generate_one():
 
@@ -38,7 +38,7 @@ def generate_seq():
                 print (os.path.join(path, folder, image))
                 name, suffix = os.path.splitext(image)
                 path_temp = os.path.join(folder, name)
-                if j == 3:
+                if j == (batch - 1):
                     image_batch = image_batch + path_temp
                 else:
                     image_batch = image_batch + path_temp + ','
@@ -128,11 +128,30 @@ def generate_THUR15K(root):
 
     file.close()
     # print(len(names))
+def generate_video_data_single_frame(root):
+    folders = os.listdir(os.path.join(root, 'train_all'))
+    # names.sort()
 
+    save_path = '/home/ty/data/video_saliency/train_all_single_frame.txt'
+    file = open(save_path, 'w')
+    for folder in folders:
+        names = os.listdir(os.path.join(root, 'train_all', folder))
+        # cv2.imread(os.path.join(root, 'GT', name[:-4] + '.png'))
+        for name in names:
+
+            line = os.path.join('train_all', folder,  name[:-4] + '.jpg') + ' ' + os.path.join('train_all_gt2_revised', folder, name[:-4] + '.png')
+            print (line)
+            # print(os.path.exists(os.path.join(root, 'THUR15000', folder, 'Src', name[:-4] + '.jpg')))
+            # print(os.path.exists(os.path.join(root, 'THUR15000', folder, 'GT', name)))
+
+            file.writelines(line + '\n')
+
+    file.close()
 
 # generate_one()
-
+generate_seq()
 # generate_MSRA10K('/home/ty/data/Pre-train')
-generate_THUR15K('/home/ty/data/Pre-train')
+# generate_THUR15K('/home/ty/data/Pre-train')
+# generate_video_data_single_frame('/home/ty/data/video_saliency')
 # change_suffix()
 # generate_seq()
