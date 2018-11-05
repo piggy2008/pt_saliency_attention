@@ -8,6 +8,9 @@ import os
 import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
+from tools.utils import load_part_of_model_PSP_whole
+
+
 
 def test(test_dir, list_file_path, save_path):
     list_file = open(list_file_path)
@@ -21,19 +24,23 @@ def test(test_dir, list_file_path, save_path):
     net_encoder = builder.build_encoder(
         arch='resnet50_dilated8',
         fc_dim=512,
-        weights='weights_base/encoder_epoch_20.pth')
+        weights='weights_base/encoder_epoch_20.pth'
+    )
     net_decoder = builder.build_decoder(
         arch='ppm_bilinear_deepsup',
         fc_dim=2048,
         num_class=1,
-        weights='weights_base/decoder_epoch_20.pth',
+        # weights='weights_base/decoder_epoch_20.pth',
         use_softmax=False)
 
     crit = nn.BCEWithLogitsLoss()
     # crit = nn.NLLLoss()
 
     model = SegmentationModule(net_encoder, net_decoder, crit, deep_sup_scale=0.4).to(device)
-    model.load_state_dict(torch.load('model/2018-10-25 09:55:44/40000/snap_model.pth'))
+    # model.load_state_dict(torch.load('model/2018-10-25 09:50:23/150000/snap_model.pth'))
+    # model.load_state_dict(torch.load('model/2018-10-25 09:55:44/40000/snap_model.pth'))
+    model.load_state_dict(torch.load('model/2018-11-01 12:09:04/50000/snap_model.pth'))
+    # model = load_part_of_model_PSP_whole(model, 'model/2018-10-25 09:55:44/40000/snap_model.pth')
     model.eval()
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
     size = 512
@@ -55,42 +62,40 @@ def test(test_dir, list_file_path, save_path):
         x = x.type(torch.cuda.FloatTensor)
 
         start = time.clock()
-        saliency, branch = model(x, None, segSize=(512, 512))
-        saliency = saliency + branch
+        saliency, branch, static, dymaic = model(x, None, segSize=(512, 512), input_size=(size, size))
+        # saliency = saliency + branch
         saliency = F.sigmoid(saliency)
         branch = F.sigmoid(branch)
         end = time.clock()
-
         count += 1
 
-
-        final_saliency = saliency.data.cpu().numpy()
-        plt.subplot(1, 3, 1)
-        plt.imshow(final_saliency[0, 0, :, :])
-
-
-        plt.subplot(1, 3, 2)
-        branch = branch.data.cpu().numpy() * 400
-        plt.imshow(branch[0, 0, :, :])
-
-        plt.subplot(1, 3, 3)
-        plt.imshow(image)
-
-        plt.show()
-
-        # saliency = saliency.data.cpu().numpy()
-        # saliency = saliency * 255
-        # save_sal = saliency.astype(np.uint8)
-        # save_img = Image.fromarray(save_sal[3, 0, :, :])
-        # save_img = save_img.resize([src_w, src_h])
+        # final_saliency = saliency.data.cpu().numpy()
+        # plt.subplot(1, 3, 1)
+        # plt.imshow(final_saliency[0, 0, :, :])
         #
-        # image_path = os.path.join(save_path, images_path[-1] + '.png')
-        # print('process:', image_path)
-        # print('time:', end - start)
-        # if not os.path.exists(os.path.dirname(image_path)):
-        #     os.makedirs(os.path.dirname(image_path))
         #
-        # save_img.save(image_path)
+        # plt.subplot(1, 3, 2)
+        # branch = branch.data.cpu().numpy()
+        # plt.imshow(branch[0, 0, :, :])
+        #
+        # plt.subplot(1, 3, 3)
+        # plt.imshow(image)
+        #
+        # plt.show()
+
+        saliency = saliency.data.cpu().numpy()
+        saliency = saliency * 255
+        save_sal = saliency.astype(np.uint8)
+        save_img = Image.fromarray(save_sal[0, 0, :, :])
+        save_img = save_img.resize([src_w, src_h])
+        #
+        image_path = os.path.join(save_path, images_path[-1] + '.png')
+        print('process:', image_path)
+        print('time:', end - start)
+        if not os.path.exists(os.path.dirname(image_path)):
+            os.makedirs(os.path.dirname(image_path))
+
+        save_img.save(image_path)
 
 if __name__ == '__main__':
     # test dir
