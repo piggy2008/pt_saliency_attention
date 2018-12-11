@@ -5,6 +5,7 @@ import time
 from models_base import ModelBuilder, SegmentationModule
 from tools.utils import preprocess3
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
@@ -39,32 +40,37 @@ def test(test_dir, list_file_path, save_path):
     model = SegmentationModule(net_encoder, net_decoder, crit, deep_sup_scale=0.4).to(device)
     # model.load_state_dict(torch.load('model/2018-10-25 09:50:23/150000/snap_model.pth'))
     # model.load_state_dict(torch.load('model/2018-10-25 09:55:44/40000/snap_model.pth'))
-    model.load_state_dict(torch.load('model/2018-11-01 12:09:04/50000/snap_model.pth'))
+    model.load_state_dict(torch.load('model/2018-11-22 09:45:58/30000/snap_model.pth'))
     # model = load_part_of_model_PSP_whole(model, 'model/2018-10-25 09:55:44/40000/snap_model.pth')
-    model.eval()
+    # model.eval()
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
-    size = 512
+    size = 398
     count = 0
     for name in test_names:
         images_path = name.split(',')
-        image_name = images_path[-1]
+        batch_x = np.zeros([4, 3, size, size])
 
-        image = Image.open(os.path.join(test_dir, image_name + '.jpg'))
+        for i, image_name in enumerate(images_path):
+            if i == 4:
+                continue
+            image = Image.open(os.path.join(test_dir, image_name + '.jpg'))
 
-        src_w, src_h = image.size
+            src_w, src_h = image.size
 
-        image = image.resize([size, size])
+            image = image.resize([size, size])
 
-        input = preprocess3(image)
-        input = np.transpose(input, [0, 3, 1, 2])
+            input = preprocess3(image)
+            input = np.transpose(input, [0, 3, 1, 2])
+            batch_x[i] = input
 
-        x = torch.from_numpy(input)
+
+        x = torch.from_numpy(batch_x)
         x = x.type(torch.cuda.FloatTensor)
 
         start = time.clock()
         saliency, branch, static, dymaic = model(x, None, segSize=(512, 512), input_size=(size, size))
         # saliency = saliency + branch
-        saliency = F.sigmoid(saliency)
+        saliency = F.sigmoid(dymaic)
         branch = F.sigmoid(branch)
         end = time.clock()
         count += 1
@@ -86,7 +92,7 @@ def test(test_dir, list_file_path, save_path):
         saliency = saliency.data.cpu().numpy()
         saliency = saliency * 255
         save_sal = saliency.astype(np.uint8)
-        save_img = Image.fromarray(save_sal[0, 0, :, :])
+        save_img = Image.fromarray(save_sal[3, 0, :, :])
         save_img = save_img.resize([src_w, src_h])
         #
         image_path = os.path.join(save_path, images_path[-1] + '.png')

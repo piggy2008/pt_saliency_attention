@@ -5,7 +5,7 @@ import numpy as np
 import glob
 
 path = '/home/ty/data/video_saliency/train_all_gt2_revised'
-save_path = '/home/ty/data/video_saliency/train_all_seq_5f.txt'
+save_path = '/home/ty/data/video_saliency/train_all_seq_step_1.txt'
 # path = '/home/ty/data/davis/davis_test'
 # save_path = '/home/ty/data/davis/davis_test_seq.txt'
 # save_path = '/home/ty/data/video_saliency/train_all_seq.txt'
@@ -39,6 +39,27 @@ def generate_seq():
                 name, suffix = os.path.splitext(image)
                 path_temp = os.path.join(folder, name)
                 if j == (batch - 1):
+                    image_batch = image_batch + path_temp
+                else:
+                    image_batch = image_batch + path_temp + ','
+            print (image_batch)
+            file.writelines(image_batch + '\n')
+
+    file.close()
+
+def generate_seq_with_step(step):
+    for folder in folders:
+        images = os.listdir(os.path.join(path, folder))
+        images.sort()
+        for i in range(1, len(images) - batch * step + 1):
+            image_batch = ''
+            for j in range(i, i + batch * step, step):
+
+                image = images[j]
+                print (os.path.join(path, folder, image))
+                name, suffix = os.path.splitext(image)
+                path_temp = os.path.join(folder, name)
+                if j == (i + batch * step - step):
                     image_batch = image_batch + path_temp
                 else:
                     image_batch = image_batch + path_temp + ','
@@ -149,9 +170,11 @@ def generate_video_data_single_frame(root):
     file.close()
 
 # generate_one()
-generate_seq()
+# generate_seq()
 # generate_MSRA10K('/home/ty/data/Pre-train')
 # generate_THUR15K('/home/ty/data/Pre-train')
 # generate_video_data_single_frame('/home/ty/data/video_saliency')
 # change_suffix()
 # generate_seq()
+
+generate_seq_with_step(3)

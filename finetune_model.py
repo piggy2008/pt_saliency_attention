@@ -7,32 +7,34 @@ from models_pspnet import PSPNet
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from models_base import ModelBuilder, SegmentationModule
-from tools.training_tools import adjust_learning_rate, create_optimizers
-from tools.utils import load_part_of_model_PSP_whole
+from tools.training_tools import adjust_learning_rate, create_optimizers, adjust_learning_rate2
+from tools.utils import *
 
 def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
     param = {}
-    param['lr_encode'] = 0.001
-    param['lr_decode'] = 0.001
+    param['lr_encode'] = 0.00001
+    param['lr_decode'] = 0.00001
     param['momentum'] = 0.95
     param['beta1'] = 0.9
     param['weight_decay'] = 1e-4
-    param['max_iters'] = 30000
+    param['max_iters'] = 10000
     param['lr_pow'] = 0.9
-    param['total_iters'] = 80001
-    param['save_iters'] = 20000
+    param['total_iters'] = 30001
+    param['save_iters'] = 10000
+    param['crop_size'] = 390
 
     param['running_lr_encoder'] = param['lr_encode']
     param['running_lr_decoder'] = param['lr_decode']
 
-    param['pretrained_model'] = 'model/2018-11-04 13:22:38/50000/snap_model.pth'
+    # param['pretrained_model'] = 'model/2018-11-11 12:51:58/30000/snap_model.pth'
+    param['pretrained_model'] = 'model/2018-11-21 10:02:32/30000/snap_model.pth'
 
     image_names = [line.strip() for line in list_file_path]
     # (self, root_dir, image_names, image_size, crop_size, batch_size, seq_size, horizontal_flip=False):
     dataset = ImageSeqData(root_dir, root_dir + '_gt2_revised', image_names,
-                           '.jpg', '.png', 530, 512, 1, 5, horizontal_flip=False)
+                           '.jpg', '.png', 420, param['crop_size'], 1, 5, horizontal_flip=False)
 
-    # dataset = ImageDataPretrain(root_dir, image_names, 530, 512, 5, horizontal_flip=False)
+    # dataset = ImageDataPretrain(root_dir, image_names, 420, param['crop_size'], 5, horizontal_flip=False)
 
     time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     log_loss = []
@@ -69,10 +71,10 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
 
     model = SegmentationModule(net_encoder, net_decoder, crit, deep_sup_scale=0.4).to(device)
     # model.load_state_dict(torch.load('model/2018-10-26 22:11:34/50000/snap_model.pth'))
-    # model = load_part_of_model_PSP_whole(model, param['pretrained_model'])
+    # model = load_part_of_model_PSP_LSTM(model, param['pretrained_model'])
     model.load_state_dict(torch.load(param['pretrained_model']))
     # optimizers = create_optimizers(nets, param)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=param['lr_encode'])
     model.train()
     for itr in range(param['total_iters']):
         x, y = dataset.next_batch()
@@ -89,7 +91,7 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
         # y_one_hot = torch.cuda.LongTensor(y.size(0), 2, y.size(2), y.size(3))
         # target = y_one_hot.scatter_(1, y.data, 1)
 
-        loss = model(x, y)
+        loss = model(x, y, input_size=(param['crop_size'], param['crop_size']))
         # saliency = final_saliency.data.cpu().numpy()
         # final_saliency, cap_feats, local_pos, cap_feats2 = model(x, x_prior)
 
@@ -112,6 +114,7 @@ def finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path):
             del log_loss[:]
 
         # adjust_learning_rate(optimizers, itr, param)
+        adjust_learning_rate2(optimizer, itr, param)
 
     print('finish training time:', str(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
 
@@ -228,5 +231,6 @@ if __name__ == '__main__':
 
     # video sequences to training
     root_dir = '/home/ty/data/video_saliency/train_all'
+    # list_file_path = open('/home/ty/data/video_saliency/train_all_seq_step_1.txt')
     list_file_path = open('/home/ty/data/video_saliency/train_all_seq_5f.txt')
     finetune_resnet50_dilated8_ppm_bilinear(root_dir, list_file_path)
