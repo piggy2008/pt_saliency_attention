@@ -18,6 +18,11 @@ def group_weight(module):
                 group_no_decay.append(m.weight)
             if m.bias is not None:
                 group_no_decay.append(m.bias)
+        elif isinstance(m, nn.modules.normalization.LayerNorm):
+            if m.weight is not None:
+                group_no_decay.append(m.weight)
+            if m.bias is not None:
+                group_no_decay.append(m.bias)
 
     assert len(list(module.parameters())) == len(group_decay) + len(group_no_decay)
     groups = [dict(params=group_decay), dict(params=group_no_decay, weight_decay=.0)]
@@ -52,3 +57,14 @@ def adjust_learning_rate(optimizers, cur_iter, param):
         param_group['lr'] = param['running_lr_encoder']
     for param_group in optimizer_decoder.param_groups:
         param_group['lr'] = param['running_lr_decoder']
+
+def adjust_learning_rate2(optimizer, cur_iter, param):
+    if param['max_iters'] >= cur_iter:
+        scale_running_lr = 1.0
+    else:
+        scale_running_lr = ((1. - float(cur_iter) / param['total_iters']) ** param['lr_pow'])
+    param['running_lr_encoder'] = param['lr_encode'] * scale_running_lr
+    param['running_lr_decoder'] = param['lr_decode'] * scale_running_lr
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param['running_lr_encoder']
