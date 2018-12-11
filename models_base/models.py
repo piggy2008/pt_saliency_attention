@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from models_base import resnet, resnext
 from lib.nn import SynchronizedBatchNorm2d
-from cell import ConvLSTM
+from cell_lstmn import ConvLSTM
 from matplotlib import pyplot as plt
 
 class SegmentationModuleBase(nn.Module):
@@ -36,7 +36,7 @@ class SegmentationModule(SegmentationModuleBase):
             loss = self.crit(pred, y)
             loss_s = self.crit(pred_stiatc, y)
             loss_d = self.crit(pred_dynamic, y)
-            loss = loss + loss_s + loss_d
+            loss = loss + 0.05 * loss_s + 0.25 * loss_d
             if self.deep_sup_scale is not None:
                 loss_deepsup = self.crit(pred_deepsup, y)
                 loss = loss + loss_deepsup * self.deep_sup_scale
@@ -436,8 +436,8 @@ class PPMBilinearDeepsup(nn.Module):
         )
 
         self.LSTM_previous = nn.Conv2d(512, 64, kernel_size=3, padding=1)
-        self.LSTM = ConvLSTM((128, 128), 64, [64], (3, 3), 1, batch_first=True, return_all_layers=False)
-        self.LSTM_after = nn.Conv2d(64, num_class, kernel_size=1)
+        self.LSTM = ConvLSTM((128, 128), 64, [16], (3, 3), 1, batch_first=True, return_all_layers=False)
+        self.LSTM_after = nn.Conv2d(16, num_class, kernel_size=1)
 
         self.classify_conv = nn.Conv2d(512, num_class, kernel_size=1)
         self.conv_last_deepsup = nn.Conv2d(fc_dim // 4, num_class, 1, 1, 0)
@@ -491,16 +491,16 @@ class PPMBilinearDeepsup(nn.Module):
 
         # plt.subplot(1, 3, 1)
         # tmp_x = x.data.cpu().numpy()
-        # plt.imshow(tmp_x[0, 0, :, :])
+        # plt.imshow(tmp_x[3, 0, :, :])
         #
         #
         # plt.subplot(1, 3, 2)
         # tmp_final_static = final_static.data.cpu().numpy()
-        # plt.imshow(tmp_final_static[0, 0, :, :])
+        # plt.imshow(tmp_final_static[3, 0, :, :])
         #
         # plt.subplot(1, 3, 3)
         # tmp_final_dynamic = final_dynamic.data.cpu().numpy()
-        # plt.imshow(tmp_final_dynamic[0, 0, :, :])
+        # plt.imshow(tmp_final_dynamic[3, 0, :, :])
         #
         # plt.show()
 
