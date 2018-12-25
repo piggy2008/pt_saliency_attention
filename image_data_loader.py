@@ -251,8 +251,8 @@ class ImageAndPriorData(ImageData):
             return batch_x, batch_y
 
 class ImageAndPriorSeqData(ImageData):
-    def __init__(self, image_dir, label_dir, prior_dir, validate_image_dir, validate_label_dir, validate_prior_dir,
-                 image_names, validate_names, image_suffix, label_suffix,
+    def __init__(self, image_dir, label_dir, prior_dir,
+                 image_names, image_suffix, label_suffix,
                  image_size, crop_size, batch_size, seq_size, horizontal_flip=False):
         self.image_dir = image_dir
         self.label_dir = label_dir
@@ -264,11 +264,7 @@ class ImageAndPriorSeqData(ImageData):
         self.seq_size = seq_size
         self.horizontal_flip = horizontal_flip
         self.batch_size = batch_size
-        self.validate_image_dir = validate_image_dir
-        self.validate_label_dir = validate_label_dir
-        self.validate_prior_dir = validate_prior_dir
         self.image_names = image_names
-        self.validate_names = validate_names
         self._load_image_name()
         self._reset_batch_offset()
         random.shuffle(self.image_names)
@@ -333,42 +329,6 @@ class ImageAndPriorSeqData(ImageData):
         batch_y = batch_y.transpose([0, 3, 1, 2])
         return batch_x, batch_y
 
-    def get_validate_images(self):
-        if self.validate_image_dir and self.validate_label_dir:
-            image_size = len(self.validate_names)
-            batch_x = np.zeros([image_size, self.crop_size, self.crop_size, 4])
-            batch_y = np.zeros([image_size, self.crop_size, self.crop_size, 1])
-            count = 0
-            for image_name in self.validate_names:
-
-                image_path = os.path.join(self.validate_image_dir, image_name + self.image_suffix)
-                label_path = os.path.join(self.validate_label_dir, image_name + self.label_suffix)
-                prior_path = os.path.join(self.validate_prior_dir, image_name + self.label_suffix)
-
-                image = Image.open(image_path)
-                label = Image.open(label_path)
-                prior = Image.open(prior_path)
-
-                image = image.resize([self.crop_size, self.crop_size])
-                label = label.resize([self.crop_size, self.crop_size])
-                prior = prior.resize([self.crop_size, self.crop_size])
-
-                x = np.array(image, dtype=np.float32)
-                x = self._preprocess(x)
-                prior_arr = np.array(prior, dtype=np.float32)
-                input = np.zeros([self.crop_size, self.crop_size, 4], dtype=np.float32)
-                input[:, :, :3] = x
-                input[:, :, 3] = prior_arr
-
-                y = np.array(label, dtype=np.float32)
-                y /= 255
-                y = y.reshape((y.shape[0], y.shape[1], 1))
-
-                batch_x[count] = input
-                batch_y[count] = y
-                count += 1
-
-            return batch_x, batch_y
 
 class ImageSeqData(ImageData):
     def __init__(self, image_dir, label_dir,
@@ -443,8 +403,6 @@ class ImageSeqData(ImageData):
         batch_x = batch_x.transpose([0, 3, 1, 2])
         batch_y = batch_y.transpose([0, 3, 1, 2])
         return batch_x, batch_y
-
-
 
 class ImageDataPretrain(ImageData):
     def __init__(self, root_dir, image_names, image_size, crop_size, batch_size, horizontal_flip=False):

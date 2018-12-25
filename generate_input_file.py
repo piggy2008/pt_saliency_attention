@@ -4,17 +4,9 @@ import cv2
 import numpy as np
 import glob
 
-path = '/home/ty/data/video_saliency/train_all_gt2_revised'
-save_path = '/home/ty/data/video_saliency/train_all_seq_step_1.txt'
-# path = '/home/ty/data/davis/davis_test'
-# save_path = '/home/ty/data/davis/davis_test_seq.txt'
-# save_path = '/home/ty/data/video_saliency/train_all_seq.txt'
-folders = os.listdir(path)
-file = open(save_path, 'w')
 
-batch = 5
 
-def generate_one():
+def generate_one(folders, path, file):
 
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
@@ -26,7 +18,7 @@ def generate_one():
 
     file.close()
 
-def generate_seq():
+def generate_seq(folders, path, file, batch):
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
         images.sort()
@@ -47,7 +39,7 @@ def generate_seq():
 
     file.close()
 
-def generate_seq_with_step(step):
+def generate_seq_with_step(folders, path, file, batch, step):
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
         images.sort()
@@ -68,7 +60,7 @@ def generate_seq_with_step(step):
 
     file.close()
 
-def generate_seq_gt_box():
+def generate_seq_gt_box(folders, path, batch, file):
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
         images.sort()
@@ -88,7 +80,7 @@ def generate_seq_gt_box():
 
     file.close()
 
-def change_suffix():
+def change_suffix(folders, path, save_path):
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
         images.sort()
@@ -99,7 +91,7 @@ def change_suffix():
                 os.makedirs(os.path.join(save_path, folder))
             img.save(os.path.join(save_path, folder, name + '.jpg'))
 
-def gt_generate():
+def gt_generate(folders, path, save_path):
     for folder in folders:
         images = os.listdir(os.path.join(path, folder))
         images.sort()
@@ -169,12 +161,75 @@ def generate_video_data_single_frame(root):
 
     file.close()
 
-# generate_one()
-# generate_seq()
-# generate_MSRA10K('/home/ty/data/Pre-train')
-# generate_THUR15K('/home/ty/data/Pre-train')
-# generate_video_data_single_frame('/home/ty/data/video_saliency')
-# change_suffix()
-# generate_seq()
+def split_VOS(all_file_root, test_root, save_root):
+    test_folders = os.listdir(test_root)
+    all_folders = os.listdir(all_file_root)
+    test_folders.sort()
+    all_folders.sort()
+    import shutil
+    for folder in all_folders:
+        if folder not in test_folders:
+            src_path = os.path.join(all_file_root, folder)
+            dst_path = os.path.join(save_root, folder)
+            print (src_path + '------>' + dst_path)
+            shutil.copytree(src_path, dst_path)
 
-generate_seq_with_step(3)
+def generate_VOS_seq(root, batch, save_path):
+    gt_folders = os.listdir(root + '/gt')
+    img_folders = root + '/imgs'
+    file = open(save_path, 'w')
+    for folder in gt_folders:
+        gt_imgs = os.listdir(root + '/gt/' + folder)
+        imgs = os.listdir(root + '/imgs/' + folder)
+        gt_imgs.sort()
+        imgs.sort()
+        for img in gt_imgs:
+            name = img[:-4]
+            index = imgs.index(name + '.jpg')
+            img_name = imgs[index]
+            # print (img_name + '-------' + img)
+            line = ''
+            for i in range(batch):
+                if i == batch - 1:
+                    line += folder + '/' + imgs[index - batch + 1 + i][:-4]
+                else:
+                    line += folder + '/' + imgs[index - batch + 1 + i][:-4] + ','
+
+            print (line)
+            file.writelines(line + '\n')
+
+    file.close()
+
+if __name__ == '__main__':
+
+    # generate_one()
+    # generate_seq()
+    # generate_MSRA10K('/home/ty/data/Pre-train')
+    # generate_THUR15K('/home/ty/data/Pre-train')
+    # generate_video_data_single_frame('/home/ty/data/video_saliency')
+    # change_suffix()
+    # generate_seq()
+
+    # generate_seq_with_step(3)
+    # path = '/home/ty/data/video_saliency/train_all_gt2_revised'
+    # save_path = '/home/ty/data/video_saliency/train_all_seq_step_1.txt'
+
+
+    # path = '/home/ty/data/davis/davis_test'
+    # save_path = '/home/ty/data/davis/davis_test_seq_5f.txt'
+    # # save_path = '/home/ty/data/video_saliency/train_all_seq.txt'
+    # folders = os.listdir(path)
+    # file = open(save_path, 'w')
+    #
+    # batch = 5
+    #
+    # generate_seq(folders, path, file, batch)
+
+    # all_file_root = '/home/ty/data/VOS/Mask'
+    # test_root = '/home/ty/data/VOS_test/images'
+    # save_root = '/home/ty/data/VOS_train/gt'
+    # split_VOS(all_file_root, test_root, save_root)
+
+    root = '/home/ty/data/VOS_train'
+    save_path = '/home/ty/data/VOS_train/train_VOS_seq_5f.txt'
+    generate_VOS_seq(root, 5, save_path)
