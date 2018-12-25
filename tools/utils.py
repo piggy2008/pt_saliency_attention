@@ -156,6 +156,65 @@ def load_part_of_model_decode(new_model, src_model_path):
     new_model.load_state_dict(m_dict)
     return new_model
 
+def load_part_of_model_deeplab(new_model, src_model_path):
+    src_model = torch.load(src_model_path)
+    m_dict = new_model.state_dict()
+    for k in src_model.keys():
+        print (k)
+        if k.find('block.4') >= 0:
+            param = src_model.get(k)
+            # print('new model param shape:', np.shape(m_dict[k].data))
+            print('override and shape:', np.shape(param))
+        # elif k.find('norm') >= 0:
+        #     print('override convlstm norm')
+        # elif k.find('loc_estimate') >= 0:
+        #     print('override loc_estimate')
+        elif k.find('auxlayer') >= 0:
+            param = src_model.get(k)
+            print('override and shape:', np.shape(param))
+
+        else:
+            param = src_model.get(k)
+            m_dict[k].data = param
+
+
+    new_model.load_state_dict(m_dict)
+    return new_model
+
+def load_part_of_model_dss(new_model, src_model_path):
+    src_model = sio.loadmat(src_model_path)
+    m_dict = new_model.state_dict()
+    for k in src_model.keys():
+        # print (k)
+        if k == '__header__' or k == '__globals__' or k == '__version__':
+            continue
+
+        k_src = k
+
+        if k.find('_w') >= 0:
+            k = k.replace('_w', '.weight')
+
+        if k.find('_b') >= 0:
+            k = k.replace('_b', '.bias')
+
+        if k.find('-'):
+            k = k.replace('-', '_')
+
+        print(k_src, '-------', k)
+
+
+
+        param = src_model.get(k_src)
+
+        if k.find('bias') >= 0:
+            param = np.reshape(param, [-1])
+
+        m_dict[k].data = torch.from_numpy(param)
+
+
+    new_model.load_state_dict(m_dict)
+    return new_model
+
 def freeze_some_layers(model):
     for child in model.named_children():
         if child[0].find('fc') >= 0 or child[0].find('attention') >= 0 \
@@ -203,7 +262,9 @@ if __name__ == '__main__':
     # load_weights_from_h5(model, h5_path)
 
     # load_part_of_model(model, 'model/2018-08-20 21:35:07/26000/snap_model.pth')
-    gaussian_mask()
+    from models_base.model_dss import Model_dss
+    dss = Model_dss()
+    load_part_of_model_dss(dss, '../pretrained_models/dss_model_params.mat')
 
 
 

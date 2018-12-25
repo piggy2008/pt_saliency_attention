@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import time
-from models_base import VideoSaliency
+from models import VideoSaliency
 from tools.utils import preprocess, resize_image_prior
 import os
 import numpy as np
@@ -30,7 +30,7 @@ def test(test_dir, test_prior_dir, list_file_path, save_path):
     # model.load_state_dict(torch.load('model/2018-08-29 09:56:15/10000/snap_model.pth'))
 
     # test for every model
-    model.load_state_dict(torch.load('model/2018-08-29 09:56:15/10000/snap_model.pth'))
+    # model.load_state_dict(torch.load('model/2018-08-29 09:56:15/10000/snap_model.pth'))
     model.eval()
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
     src_w = 0

@@ -52,3 +52,13 @@ def adjust_learning_rate(optimizers, cur_iter, param):
         param_group['lr'] = param['running_lr_encoder']
     for param_group in optimizer_decoder.param_groups:
         param_group['lr'] = param['running_lr_decoder']
+
+def adjust_learning_rate2(optimizer, cur_iter, param):
+    if param['max_iters'] >= cur_iter:
+        scale_running_lr = 1.0
+    else:
+        scale_running_lr = ((1. - float(cur_iter) / param['total_iters']) ** param['lr_pow'])
+    param['running_lr'] = param['lr'] * scale_running_lr
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param['running_lr']

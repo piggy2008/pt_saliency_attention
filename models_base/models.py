@@ -73,6 +73,8 @@ class ModelBuilder():
 
     def build_encoder(self, arch='resnet50_dilated8', fc_dim=512, weights=''):
         pretrained = True if len(weights) == 0 else False
+        pretrained = False
+
         if arch == 'resnet18':
             orig_resnet = resnet.__dict__['resnet18'](pretrained=pretrained)
             net_encoder = Resnet(orig_resnet)

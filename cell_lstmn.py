@@ -2,6 +2,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch
 
+import torch.nn.functional as F
+
 
 class ConvLSTMCell(nn.Module):
     def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias, normalize=True):
@@ -60,9 +62,9 @@ class ConvLSTMCell(nn.Module):
             cc_g = self.g_norm(cc_g)
             cc_f = self.f_norm(cc_f)
 
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f + 1.0)
-        g = torch.tanh(cc_g)
+        i = F.sigmoid(cc_i)
+        f = F.sigmoid(cc_f + 1.0)
+        g = F.tanh(cc_g)
 
         c_next = f * c_cur + i * g
 
@@ -70,8 +72,8 @@ class ConvLSTMCell(nn.Module):
             cc_o = self.g_norm(cc_o)
             c_next = self.f_norm(c_next)
 
-        o = torch.sigmoid(cc_o)
-        h_next = o * torch.tanh(c_next)
+        o = F.sigmoid(cc_o)
+        h_next = o * F.tanh(c_next)
 
         return h_next, c_next
 
@@ -115,6 +117,10 @@ class ConvLSTM(nn.Module):
 
         self.cell_list = nn.ModuleList(cell_list)
 
+        ###### history hidden state #######
+        self.w_h = nn.Conv2d(in_channels=self.hidden_dim[0], out_channels=1, kernel_size=3, padding=1)
+        self.w_x = nn.Conv2d(in_channels=self.input_dim, out_channels=1, kernel_size=3, padding=1)
+
     def forward(self, input_tensor, hidden_state=None):
         """
 
@@ -149,10 +155,18 @@ class ConvLSTM(nn.Module):
 
             h, c = hidden_state[layer_idx]
             output_inner = []
+            h_history = []
+            c_history = []
+            input_list = []
             for t in range(seq_len):
+                if t > 1:
+                    h, c = self._hidden_attention(h_history, input_list)
                 h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
                                                  cur_state=[h, c])
                 output_inner.append(h)
+                h_history.append(h)
+                c_history.append(c)
+                input_list.append(cur_layer_input[:, t, :, :, :])
 
             layer_output = torch.stack(output_inner, dim=1)
             cur_layer_input = layer_output
@@ -171,6 +185,26 @@ class ConvLSTM(nn.Module):
         for i in range(self.num_layers):
             init_states.append(self.cell_list[i].init_hidden(batch_size))
         return init_states
+
+    def _hidden_attention(self, h_history, c_history, input_list):
+        a_history = []
+        for i, h in enumerate(h_history):
+            a_h = F.adaptive_avg_pool2d(F.tanh(self.w_h(h) + self.w_x(input_list[i])), output_size=(1, 1))
+            a_h = a_h.reshape([a_h.size(0), -1])
+            a_history.append(a_h)
+
+        a_history_cat = torch.cat(a_history, dim=1)
+        attention = F.softmax(a_history_cat, dim=1)
+        attention = attention.chunk(len(h_history), dim=1)
+        h_atte = torch.zeros_like(h_history[0])
+        c_atte = torch.zeros_like(c_history[0])
+        for i, h in enumerate(h_history):
+            h_atte += attention[i] * h
+
+        for i, c in enumerate(c_history):
+            c_atte += attention[i] * c
+
+        return h_atte, c_atte
 
     @staticmethod
     def _check_kernel_size_consistency(kernel_size):
