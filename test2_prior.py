@@ -5,7 +5,7 @@ import time
 from models_base import ModelBuilder, SegmentationModule
 from tools.utils import preprocess3
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
@@ -13,7 +13,7 @@ from tools.utils import load_part_of_model_PSP_whole
 
 
 
-def test(test_dir, list_file_path, save_path):
+def test(test_dir, prior_dir, list_file_path, save_path):
     list_file = open(list_file_path)
     test_names = [line.strip() for line in list_file]
 
@@ -23,9 +23,9 @@ def test(test_dir, list_file_path, save_path):
 
     builder = ModelBuilder()
     net_encoder = builder.build_encoder(
-        arch='resnet50_dilated8',
+        arch='resnet50_dilated8_prior',
         fc_dim=512,
-        weights='weights_base/encoder_epoch_20.pth'
+        # weights='weights_base/encoder_epoch_20.pth'
     )
     net_decoder = builder.build_decoder(
         arch='ppm_bilinear_deepsup',
@@ -40,28 +40,32 @@ def test(test_dir, list_file_path, save_path):
     model = SegmentationModule(net_encoder, net_decoder, crit, deep_sup_scale=0.4).to(device)
     # model.load_state_dict(torch.load('model/2018-10-25 09:50:23/150000/snap_model.pth'))
     # model.load_state_dict(torch.load('model/2018-10-25 09:55:44/40000/snap_model.pth'))
-    model.load_state_dict(torch.load('model/2018-12-24 10:47:03/20000/snap_model.pth'))
+    model.load_state_dict(torch.load('model/2018-12-24 22:38:10/30000/snap_model.pth'))
     # model = load_part_of_model_PSP_whole(model, 'model/2018-10-25 09:55:44/40000/snap_model.pth')
     # model.eval()
     # model = load_part_of_model(model, 'model/2018-08-22 18:04:08/6000/snap_model.pth')
-    size = 390
+    size = 380
     count = 0
     for name in test_names:
         images_path = name.split(',')
-        batch_x = np.zeros([4, 3, size, size])
+        batch_x = np.zeros([4, 4, size, size])
 
         for i, image_name in enumerate(images_path):
-            # if i == 5:
-            #     continue
+            if i == 4:
+                continue
             image = Image.open(os.path.join(test_dir, image_name + '.jpg'))
+            prior = Image.open(os.path.join(prior_dir, image_name + '.png'))
 
             src_w, src_h = image.size
 
             image = image.resize([size, size])
+            prior = prior.resize([size, size])
 
             input = preprocess3(image)
+            prior_arr = np.array(prior, dtype=np.float32)
             input = np.transpose(input, [0, 3, 1, 2])
-            batch_x[i] = input
+            batch_x[i, :3, :, :] = input
+            batch_x[i, 3, :, :] = prior_arr
 
 
         x = torch.from_numpy(batch_x)
@@ -117,4 +121,4 @@ if __name__ == '__main__':
 
     save_path = 'total_result/result_rnn'
 
-    test(test_dir, list_file_path, save_path)
+    test(test_dir, test_prior_dir, list_file_path, save_path)

@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
-import torchvision
-from . import resnet, resnext
+from models_base import resnet, resnext
 from lib.nn import SynchronizedBatchNorm2d
-
+from cell import ConvLSTM
+from matplotlib import pyplot as plt
+from channelSpatialWise import ChannelWiseBlock, SpatialWiseBlock
+import numpy as np
+from tools.utils import gaussian_mask
 
 class SegmentationModuleBase(nn.Module):
     def __init__(self):
@@ -11,8 +14,8 @@ class SegmentationModuleBase(nn.Module):
 
     def pixel_acc(self, pred, label):
         _, preds = torch.max(pred, dim=1)
-        valid = (label >= 0).long()
-        acc_sum = torch.sum(valid * (preds == label).long())
+        valid = (label >= 0).float()
+        acc_sum = torch.sum(valid * (preds == label).float())
         pixel_sum = torch.sum(valid)
         acc = acc_sum.float() / (pixel_sum.float() + 1e-10)
         return acc
@@ -26,22 +29,27 @@ class SegmentationModule(SegmentationModuleBase):
         self.crit = crit
         self.deep_sup_scale = deep_sup_scale
 
-    def forward(self, feed_dict, *, segSize=None):
+    def forward(self, x, y, segSize=None, input_size=(512, 512)):
         if segSize is None: # training
             if self.deep_sup_scale is not None: # use deep supervision technique
-                (pred, pred_deepsup) = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True))
+                (pred, pred_deepsup, pred_dynamic) = self.decoder(self.encoder(x, return_feature_maps=True), input_size=input_size)
             else:
-                pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True))
+                pred = self.decoder(self.encoder(x, return_feature_maps=True), input_size=input_size)
 
-            loss = self.crit(pred, feed_dict['seg_label'])
+            loss = self.crit(pred, y)
+            # loss_s = self.crit(pred_stiatc, y)
+            loss_d = self.crit(pred_dynamic, y)
+            # loss = loss + 0.05 * loss_s + 0.15 * loss_d
+            loss = loss + 0.10 * loss_d
             if self.deep_sup_scale is not None:
-                loss_deepsup = self.crit(pred_deepsup, feed_dict['seg_label'])
+                loss_deepsup = self.crit(pred_deepsup, y)
                 loss = loss + loss_deepsup * self.deep_sup_scale
 
-            acc = self.pixel_acc(pred, feed_dict['seg_label'])
-            return loss, acc
+            # acc = self.pixel_acc(pred, y)
+            # return loss, acc
+            return loss
         else: # inference
-            pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
+            pred = self.decoder(self.encoder(x, return_feature_maps=True), segSize=segSize, input_size=input_size)
             return pred
 
 
@@ -64,7 +72,8 @@ class ModelBuilder():
     def weights_init(self, m):
         classname = m.__class__.__name__
         if classname.find('Conv') != -1:
-            nn.init.kaiming_normal_(m.weight.data)
+            if not classname.find('LSTM') != -1:
+                nn.init.kaiming_normal_(m.weight.data)
         elif classname.find('BatchNorm') != -1:
             m.weight.data.fill_(1.)
             m.bias.data.fill_(1e-4)
@@ -106,6 +115,10 @@ class ModelBuilder():
         elif arch == 'resnet50_dilated8':
             orig_resnet = resnet.__dict__['resnet50'](pretrained=pretrained)
             net_encoder = ResnetDilated(orig_resnet,
+                                        dilate_scale=8)
+        elif arch == 'resnet50_dilated8_prior':
+            orig_resnet = resnet.__dict__['resnet50'](pretrained=False)
+            net_encoder = ResnetDilated_PriorInput(orig_resnet,
                                         dilate_scale=8)
         elif arch == 'resnet50_dilated16':
             orig_resnet = resnet.__dict__['resnet50'](pretrained=pretrained)
@@ -182,8 +195,13 @@ class ModelBuilder():
         net_decoder.apply(self.weights_init)
         if len(weights) > 0:
             print('Loading weights for net_decoder')
-            net_decoder.load_state_dict(
-                torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
+            if arch == 'ppm_bilinear_deepsup':
+                from tools.utils import load_part_of_model_decode
+                net_decoder = load_part_of_model_decode(net_decoder, weights)
+            else:
+                net_decoder.load_state_dict(
+                    torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
+
         return net_decoder
 
 
@@ -269,6 +287,76 @@ class ResnetDilated(nn.Module):
                 if m.kernel_size == (3, 3):
                     m.dilation = (dilate, dilate)
                     m.padding = (dilate, dilate)
+
+    def forward(self, x, return_feature_maps=False):
+        conv_out = []
+
+        x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu2(self.bn2(self.conv2(x)))
+        x = self.relu3(self.bn3(self.conv3(x)))
+        x = self.maxpool(x)
+
+        x = self.layer1(x); conv_out.append(x);
+        x = self.layer2(x); conv_out.append(x);
+        x = self.layer3(x); conv_out.append(x);
+        x = self.layer4(x); conv_out.append(x);
+
+        if return_feature_maps:
+            return conv_out
+        return [x]
+
+class ResnetDilated_PriorInput(nn.Module):
+    def __init__(self, orig_resnet, dilate_scale=8):
+        super(ResnetDilated_PriorInput, self).__init__()
+        from functools import partial
+
+        if dilate_scale == 8:
+            orig_resnet.layer3.apply(
+                partial(self._nostride_dilate, dilate=2))
+            orig_resnet.layer4.apply(
+                partial(self._nostride_dilate, dilate=4))
+        elif dilate_scale == 16:
+            orig_resnet.layer4.apply(
+                partial(self._nostride_dilate, dilate=2))
+
+        # take pretrained resnet, except AvgPool and FC
+        self.conv1 = conv3x3(4, 64, stride=2)
+        self.bn1 = orig_resnet.bn1
+        self.relu1 = orig_resnet.relu1
+        self.conv2 = orig_resnet.conv2
+        self.bn2 = orig_resnet.bn2
+        self.relu2 = orig_resnet.relu2
+        self.conv3 = orig_resnet.conv3
+        self.bn3 = orig_resnet.bn3
+        self.relu3 = orig_resnet.relu3
+        self.maxpool = orig_resnet.maxpool
+        self.layer1 = orig_resnet.layer1
+        self.layer2 = orig_resnet.layer2
+        self.layer3 = orig_resnet.layer3
+        self.layer4 = orig_resnet.layer4
+
+    def _nostride_dilate(self, m, dilate):
+        classname = m.__class__.__name__
+        if classname.find('Conv') != -1:
+            # the convolution with stride
+            if m.stride == (2, 2):
+                m.stride = (1, 1)
+                if m.kernel_size == (3, 3):
+                    m.dilation = (dilate//2, dilate//2)
+                    m.padding = (dilate//2, dilate//2)
+            # other convoluions
+            else:
+                if m.kernel_size == (3, 3):
+                    m.dilation = (dilate, dilate)
+                    m.padding = (dilate, dilate)
+
+    def _inputPrior(self, m, in_channels):
+        classname = m.__class__.__name__
+        if classname.find('Conv') != -1:
+            # the convolution with stride
+            if m.in_channels == 3:
+                m.in_channels = in_channels
+
 
     def forward(self, x, return_feature_maps=False):
         conv_out = []
@@ -422,26 +510,72 @@ class PPMBilinearDeepsup(nn.Module):
                       kernel_size=3, padding=1, bias=False),
             SynchronizedBatchNorm2d(512),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(0.1),
-            nn.Conv2d(512, num_class, kernel_size=1)
+            nn.Dropout2d(0.25),
+            # nn.Conv2d(512, num_class, kernel_size=1)
+            # ConvLSTM((128, 128), 5, [512], (3, 3), 1, batch_first=True, return_all_layers=False),
         )
+
+        # self.channel_wise = ChannelWiseBlock(512, 64)
+        # self.spatial_wise = SpatialWiseBlock(512)
+
+        self.LSTM_previous = nn.Conv2d(512, 64, kernel_size=3, padding=1)
+        self.LSTM = ConvLSTM((128, 128), 128, [64], (3, 3), 1, batch_first=True, return_all_layers=False)
+        self.LSTM_after = nn.Conv2d(64, num_class, kernel_size=1)
+
+        self.LSTM_framemunis = ConvLSTM((128, 128), 64, [64], (3, 3), 1, batch_first=True, return_all_layers=False)
+        # self.LSTM_framemunis_after = nn.Conv2d(16, num_class, kernel_size=1)
+
+        # self.classify_conv = nn.Conv2d(512, num_class, kernel_size=1)
         self.conv_last_deepsup = nn.Conv2d(fc_dim // 4, num_class, 1, 1, 0)
         self.dropout_deepsup = nn.Dropout2d(0.1)
 
-    def forward(self, conv_out, segSize=None):
+        # self.fuse_st = nn.Conv2d(2, num_class, kernel_size=1)
+
+    def forward(self, conv_out, segSize=None, input_size=(512, 512)):
         conv5 = conv_out[-1]
 
-        input_size = conv5.size()
-        ppm_out = [conv5]
+        # src
+        # upsample_size = conv5.size()
+
+        # modify output size 512, 512
+        upsample_size = (5, 2048, 128, 128)
+        # ppm_out = [conv5]
+        up_conv5 = nn.functional.upsample(conv5, (upsample_size[2], upsample_size[3]), mode='bilinear', align_corners=False)
+        ppm_out = [up_conv5]
         for pool_scale in self.ppm:
             ppm_out.append(nn.functional.upsample(
                 pool_scale(conv5),
-                (input_size[2], input_size[3]),
+                (upsample_size[2], upsample_size[3]),
                 mode='bilinear', align_corners=False))
         ppm_out = torch.cat(ppm_out, 1)
 
         x = self.conv_last(ppm_out)
 
+        # x = self.channel_wise(x)
+        # x = self.spatial_wise(x)
+        # final_static = self.classify_conv(x)
+
+        LSTM_side = self.LSTM_previous(x)
+
+        LSTM_split = torch.split(LSTM_side, 1, dim=0)
+        LSTM_minus_input = []
+        LSTM_minus_input.append(LSTM_split[0])
+        for i in range(1, len(LSTM_split)):
+            LSTM_minus_input.append(LSTM_split[i] - LSTM_split[i - 1])
+
+        LSTM_minus_input = torch.cat(LSTM_minus_input, 0)
+        # print(LSTM_minus_input.size())
+
+        LSTM_minus_side, state_minus = self.LSTM_framemunis(LSTM_minus_input.unsqueeze(0))
+        # import scipy.io as sio
+        # sio.savemat('featuremaps/LSTM_side.mat', {'LSTM_input': LSTM_side.data.cpu().numpy()})
+        LSTM_side = torch.cat([LSTM_side, LSTM_minus_side[0].squeeze(0)], 1)
+        # print(tmp.size())
+        LSTM_side, state = self.LSTM(LSTM_side.unsqueeze(0))
+
+        final_dynamic = self.LSTM_after(LSTM_side[0].squeeze(0))
+        x = final_dynamic
+        # x = self.fuse_st(torch.cat([final_dynamic, final_static], 1))
         if self.use_softmax:  # is True during inference
             x = nn.functional.upsample(
                 x, size=segSize, mode='bilinear', align_corners=False)
@@ -454,10 +588,67 @@ class PPMBilinearDeepsup(nn.Module):
         _ = self.dropout_deepsup(_)
         _ = self.conv_last_deepsup(_)
 
-        x = nn.functional.log_softmax(x, dim=1)
-        _ = nn.functional.log_softmax(_, dim=1)
+        print(_.size())
 
-        return (x, _)
+        # final upsample to (512,512)
+        x = nn.functional.upsample(x, (input_size[0], input_size[1]))
+        _ = nn.functional.upsample(_, (input_size[0], input_size[1]))
+        final_dynamic = nn.functional.upsample(final_dynamic, (input_size[0], input_size[1]))
+        # final_static = nn.functional.upsample(final_static, (input_size[0], input_size[1]))
+
+        # x = nn.functional.log_softmax(x, dim=1)
+        # _ = nn.functional.log_softmax(_, dim=1)
+
+        # plt.subplot(1, 3, 1)
+        # tmp_x = x.data.cpu().numpy()
+        # plt.imshow(tmp_x[3, 0, :, :])
+        #
+        #
+        # plt.subplot(1, 3, 2)
+        # tmp_final_static = final_static.data.cpu().numpy()
+        # plt.imshow(tmp_final_static[3, 0, :, :])
+        #
+        # plt.subplot(1, 3, 3)
+        # tmp_final_dynamic = final_dynamic.data.cpu().numpy()
+        # plt.imshow(tmp_final_dynamic[3, 0, :, :])
+        #
+        # plt.show()
+
+        return (x, _, final_dynamic)
+
+    def generate_local_gaussian(self, local_poc):
+        size = 400
+        points = local_poc.data.cpu().numpy()
+        # points_val = np.zeros_like(points, dtype=points.dtype)
+        cap_map_batch = np.zeros([points.shape[0], 1, size, size], dtype=np.float16)
+        for i in range(0, points.shape[0]):
+            point = points[i, :]
+            if point[0] < point[2] and point[1] < point[3] \
+                    and (point[2] - point[0]) < 0.95 \
+                    and (point[3] - point[1]) < 0.95 \
+                    and (point[2] - point[0]) > 0.05 \
+                    and (point[3] - point[1]) > 0.05:
+                # suitable point
+                print(point)
+                # print(':' + str((point[2] - point[0]) * (point[3] - point[1])))
+                # point = point * size
+                # point = point.astype(np.int16)
+                center_x = (point[3] - point[1]) / 2 + point[1]
+                center_y = (point[2] - point[0]) / 2 + point[0]
+                print('center point:(' + str(center_x) + ',' + str(center_y) + ')')
+                cap_map = gaussian_mask(center_x, center_y, sigma=0.75)
+                # cap_map = np.pad(cap_map, ([point[0], size - point[2]], [point[1], size - point[3]]), 'constant')
+                cap_map_batch[i, 0, :, :] = cap_map
+            else:
+                # not suitable, choose center gaussian
+                cap_map = gaussian_mask(0.5, 0.5, sigma=0.75)
+                # cap_map = np.pad(cap_map, ([int(size / 4), int(size / 4)], [int(size / 4), int(size / 4)]), 'constant')
+                cap_map_batch[i, 0, :, :] = cap_map
+
+        cap_map_batch = torch.from_numpy(cap_map_batch)
+        cap_map_batch = cap_map_batch.type(torch.cuda.FloatTensor)
+
+        return cap_map_batch
 
 
 # upernet
@@ -549,3 +740,18 @@ class UPerNet(nn.Module):
         x = nn.functional.log_softmax(x, dim=1)
 
         return x
+
+if __name__ == '__main__':
+    builder = ModelBuilder()
+    net_encoder = builder.build_encoder(
+        arch='resnet50_dilated8_prior',
+        fc_dim=512,
+        weights='../weights_base/encoder_epoch_20.pth')
+    net_decoder = builder.build_decoder(
+        arch='ppm_bilinear_deepsup',
+        fc_dim=2048,
+        num_class=2,
+        weights='../weights_base/decoder_epoch_20.pth',
+        use_softmax=True)
+
+    crit = nn.NLLLoss(ignore_index=-1)

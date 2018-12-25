@@ -160,7 +160,7 @@ class ConvLSTM(nn.Module):
             input_list = []
             for t in range(seq_len):
                 if t > 1:
-                    h, c = self._hidden_attention(h_history, input_list)
+                    h, c = self._hidden_attention(h_history, c_history, input_list)
                 h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
                                                  cur_state=[h, c])
                 output_inner.append(h)
