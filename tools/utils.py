@@ -100,13 +100,58 @@ def load_part_of_model(new_model, src_model_path):
     m_dict = new_model.state_dict()
     for k in src_model.keys():
         print (k)
-        if k.find('attention') >= 0:
-            print('override attention')
 
-        # elif k.find('norm') >= 0:
-        #     print('override convlstm norm')
-        # elif k.find('loc_estimate') >= 0:
-        #     print('override loc_estimate')
+        param = src_model.get(k)
+        m_dict[k].data = param
+
+
+    new_model.load_state_dict(m_dict)
+    return new_model
+
+def load_part_of_model_prior(new_model, src_model_path):
+    src_model = torch.load(src_model_path)
+    m_dict = new_model.state_dict()
+    for k in src_model.keys():
+        print (k)
+        if k.find('encoder.conv1.weight') >= 0:
+            print('override')
+            param = src_model.get(k)
+            # tmp = m_dict[k].data
+            # tmp[:, :3, :, :] = param
+            # tmp[:, 3, :, :] = param[:, 2, :, :]
+            # m_dict[k].data = tmp
+            print(param.shape)
+        elif k.find('LSTM') >= 0:
+            param = src_model.get(k)
+
+            # m_dict[k.replace('conv_last.4', 'classify_conv')] = param
+            # print('new model param shape:', np.shape(m_dict[k].data))
+            print('override and shape:', np.shape(param))
+        elif k.find('classify_conv') >= 0:
+            param = src_model.get(k)
+            print('override and shape:', np.shape(param))
+        else:
+            param = src_model.get(k)
+            m_dict[k].data = param
+
+
+    new_model.load_state_dict(m_dict)
+    return new_model
+
+def load_part_of_model_LSTM(new_model, src_model_path):
+    src_model = torch.load(src_model_path)
+    m_dict = new_model.state_dict()
+    for k in src_model.keys():
+        print (k)
+        if k.find('LSTM') >= 0:
+            param = src_model.get(k)
+
+            # m_dict[k.replace('conv_last.4', 'classify_conv')] = param
+            # print('new model param shape:', np.shape(m_dict[k].data))
+            print('override and shape:', np.shape(param))
+        elif k.find('classify_conv') >= 0:
+            param = src_model.get(k)
+            print('override and shape:', np.shape(param))
         else:
             param = src_model.get(k)
             m_dict[k].data = param
@@ -195,6 +240,7 @@ def load_part_of_model_PSP_LSTMNorm(new_model, src_model_path):
         #     print('override convlstm norm')
         # elif k.find('loc_estimate') >= 0:
         #     print('override loc_estimate')
+
         else:
             param = src_model.get(k)
             m_dict[k].data = param
@@ -252,6 +298,22 @@ def gaussian_mask(center_x, center_y, sigma=0.25):
     # plt.show()
     return z
 
+def generate_gaussian_mask(shape, sigma, sigma_y=None):
+    if sigma_y==None:
+        sigma_y=sigma
+    rows, cols = shape
+
+    def get_gaussian_fct(size, sigma):
+        fct_gaus_x = np.linspace(0,size,size)
+        fct_gaus_x = fct_gaus_x-size/2
+        fct_gaus_x = fct_gaus_x**2
+        fct_gaus_x = fct_gaus_x/(2*sigma**2)
+        fct_gaus_x = np.exp(-fct_gaus_x)
+        return fct_gaus_x
+
+    mask = np.outer(get_gaussian_fct(rows,sigma), get_gaussian_fct(cols,sigma_y))
+    return mask
+
 if __name__ == '__main__':
     # img = cv2.imread('Comp_195.bmp')
     # anno = cv2.imread('Comp_195.png', 0)
@@ -273,7 +335,11 @@ if __name__ == '__main__':
     # load_weights_from_h5(model, h5_path)
 
     # load_part_of_model(model, 'model/2018-08-20 21:35:07/26000/snap_model.pth')
-    gaussian_mask()
+    from scipy.ndimage.filters import gaussian_filter
+    input = np.ones([100, 100])
+    mask = gaussian_filter(input, 0.05)
+    plt.imshow(mask)
+    plt.show()
 
 
 
