@@ -149,9 +149,9 @@ def load_part_of_model_LSTM(new_model, src_model_path):
             # m_dict[k.replace('conv_last.4', 'classify_conv')] = param
             # print('new model param shape:', np.shape(m_dict[k].data))
             print('override and shape:', np.shape(param))
-        elif k.find('classify_conv') >= 0:
-            param = src_model.get(k)
-            print('override and shape:', np.shape(param))
+        # elif k.find('classify_conv') >= 0:
+        #     param = src_model.get(k)
+        #     print('override and shape:', np.shape(param))
         else:
             param = src_model.get(k)
             m_dict[k].data = param
@@ -201,46 +201,36 @@ def load_part_of_model_decode(new_model, src_model_path):
     new_model.load_state_dict(m_dict)
     return new_model
 
-<<<<<<< HEAD
-def load_part_of_model_deeplab(new_model, src_model_path):
-=======
+
 def load_part_of_model_PSP_whole(new_model, src_model_path):
->>>>>>> 0b3a74da3d236c6ebd716902195ad7b2dd00b30a
+
     src_model = torch.load(src_model_path)
     m_dict = new_model.state_dict()
     for k in src_model.keys():
         print (k)
-<<<<<<< HEAD
+
         if k.find('block.4') >= 0:
             param = src_model.get(k)
-=======
+
         if k.find('conv_last.4') >= 0:
             param = src_model.get(k)
 
             m_dict[k.replace('conv_last.4', 'classify_conv')] = param
->>>>>>> 0b3a74da3d236c6ebd716902195ad7b2dd00b30a
             # print('new model param shape:', np.shape(m_dict[k].data))
             print('override and shape:', np.shape(param))
         # elif k.find('norm') >= 0:
         #     print('override convlstm norm')
         # elif k.find('loc_estimate') >= 0:
         #     print('override loc_estimate')
-<<<<<<< HEAD
         elif k.find('auxlayer') >= 0:
             param = src_model.get(k)
             print('override and shape:', np.shape(param))
-
-=======
->>>>>>> 0b3a74da3d236c6ebd716902195ad7b2dd00b30a
-        else:
-            param = src_model.get(k)
             m_dict[k].data = param
 
 
     new_model.load_state_dict(m_dict)
     return new_model
 
-<<<<<<< HEAD
 def load_part_of_model_dss(new_model, src_model_path):
     src_model = sio.loadmat(src_model_path)
     m_dict = new_model.state_dict()
@@ -270,7 +260,7 @@ def load_part_of_model_dss(new_model, src_model_path):
             param = np.reshape(param, [-1])
 
         m_dict[k].data = torch.from_numpy(param)
-=======
+
 def load_part_of_model_PSP_LSTMNorm(new_model, src_model_path):
     src_model = torch.load(src_model_path)
     m_dict = new_model.state_dict()
@@ -314,7 +304,6 @@ def load_part_of_model_PSP_LSTM(new_model, src_model_path):
         else:
             param = src_model.get(k)
             m_dict[k].data = param
->>>>>>> 0b3a74da3d236c6ebd716902195ad7b2dd00b30a
 
 
     new_model.load_state_dict(m_dict)
@@ -346,21 +335,32 @@ def gaussian_mask(center_x, center_y, sigma=0.25):
     # plt.show()
     return z
 
-def generate_gaussian_mask(shape, sigma, sigma_y=None):
-    if sigma_y==None:
-        sigma_y=sigma
-    rows, cols = shape
+def generate_gaussian_mask(center, sigma, size):
+    x = np.linspace(0, 1, size)
+    y = np.linspace(0, 1, size)
+    # Need an (N, 2) array of (x, y) pairs.
+    x, y = np.meshgrid(x, y)
 
-    def get_gaussian_fct(size, sigma):
-        fct_gaus_x = np.linspace(0,size,size)
-        fct_gaus_x = fct_gaus_x-size/2
-        fct_gaus_x = fct_gaus_x**2
-        fct_gaus_x = fct_gaus_x/(2*sigma**2)
-        fct_gaus_x = np.exp(-fct_gaus_x)
-        return fct_gaus_x
+    mu = np.array(center)
 
-    mask = np.outer(get_gaussian_fct(rows,sigma), get_gaussian_fct(cols,sigma_y))
-    return mask
+    # sigma = np.array([[0.075, 0], [0, 0.025]])
+    sigma = np.array([[sigma[0], 0], [0, sigma[1]]])
+    pos = np.empty(x.shape + (2,))
+
+    pos[:, :, 0] = x
+    pos[:, :, 1] = y
+
+    # print(pos.shape)
+
+    n = mu.shape[0]
+    sigma_det = np.linalg.det(sigma)
+    sigma_inv = np.linalg.inv(sigma)
+
+    N = np.sqrt((2 * np.pi) ** n * sigma_det)
+    fac = np.einsum('...k,kl,...l->...', pos - mu, sigma_inv, pos - mu)
+    mask = np.exp(-fac / 2) / N
+
+    return mask / np.max(mask)
 
 if __name__ == '__main__':
     # img = cv2.imread('Comp_195.bmp')
@@ -383,17 +383,20 @@ if __name__ == '__main__':
     # load_weights_from_h5(model, h5_path)
 
     # load_part_of_model(model, 'model/2018-08-20 21:35:07/26000/snap_model.pth')
-<<<<<<< HEAD
-    from models_base.model_dss import Model_dss
-    dss = Model_dss()
-    load_part_of_model_dss(dss, '../pretrained_models/dss_model_params.mat')
-=======
-    from scipy.ndimage.filters import gaussian_filter
-    input = np.ones([100, 100])
-    mask = gaussian_filter(input, 0.05)
-    plt.imshow(mask)
+    a = torch.ones([1, 64, 50, 50])
+    a = a.type(torch.FloatTensor)
+    center = [0.5, 0.5]
+    # sigma:0.005 ~ 0.025, 0.005 ~ 0.025
+    sigma = [0.025, 0.005]
+
+    z = generate_gaussian_mask(center, sigma, 50)
+    z = z.reshape([1, 1, 50, 50])
+    z = torch.from_numpy(z)
+    z = z.type(torch.FloatTensor)
+    print(z.size())
+    plt.imshow(z[0, 0, :, :])
     plt.show()
->>>>>>> 0b3a74da3d236c6ebd716902195ad7b2dd00b30a
+
 
 
 

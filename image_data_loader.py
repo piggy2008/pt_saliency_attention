@@ -726,8 +726,8 @@ class ImageAndPriorSeqBboxData(ImageData):
 
 
 class ImageAndPriorSeqCenterPData(ImageData):
-    def __init__(self, image_dir, label_dir, prior_dir, validate_image_dir, validate_label_dir, validate_prior_dir,
-                 image_names, validate_names, image_suffix, label_suffix,
+    def __init__(self, image_dir, label_dir, prior_dir,
+                 image_names, image_suffix, label_suffix,
                  image_size, crop_size, batch_size, seq_size, horizontal_flip=False, pulishment=False):
         self.image_dir = image_dir
         self.label_dir = label_dir
@@ -739,11 +739,7 @@ class ImageAndPriorSeqCenterPData(ImageData):
         self.seq_size = seq_size
         self.horizontal_flip = horizontal_flip
         self.batch_size = batch_size
-        self.validate_image_dir = validate_image_dir
-        self.validate_label_dir = validate_label_dir
-        self.validate_prior_dir = validate_prior_dir
         self.image_names = image_names
-        self.validate_names = validate_names
         self._load_image_name()
         self._reset_batch_offset()
         self.pulishment = pulishment

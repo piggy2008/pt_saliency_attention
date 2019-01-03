@@ -200,6 +200,52 @@ def generate_VOS_seq(root, batch, save_path):
 
     file.close()
 
+def generate_seq_bbx(seq_file_path, root_path, save_path):
+    # seq_file_path = '/home/ty/data/video_saliency/train_all_seq.txt'
+    # root_path = '/home/ty/data/video_saliency/train_all_gt2_revised'
+    list_file = open(seq_file_path)
+    image_names = [line.strip() for line in list_file]
+    file = open(save_path, 'w')
+    for image_seq in image_names:
+        images = image_seq.split(',')
+        # images.sort()
+        point_batch = image_seq + ';'
+        for j in range(len(images)):
+            image = images[j]
+            img = cv2.imread(os.path.join(root_path, image + '.png'), 0)
+            img_arr = np.array(img)
+            # x =img[np.where(img == 255)]
+            # print(np.unique(img_arr))
+            x, y = np.where(img_arr > 0)
+            if len(x) > 0 and len(y) > 0:
+                x_min = str(min(x))
+                y_min = str(min(y))
+                x_max = str(max(x))
+                y_max = str(max(y))
+            else:
+                x_min = '0'
+                y_min = '0'
+                x_max = str(img_arr.shape[0])
+                y_max = str(img_arr.shape[1])
+
+            if j == len(images) - 1:
+                point = x_min + '-' + y_min + '-' + x_max + '-' + y_max
+                point_batch = point_batch + point
+            else:
+                point = x_min + '-' + y_min + '-' + x_max + '-' + y_max + ','
+                point_batch = point_batch + point
+
+        print (point_batch)
+        file.writelines(point_batch + '\n')
+            # plt.subplot(1, 2, 1)
+            # plt.imshow(img)
+            # plt.subplot(1, 2, 2)
+            # plt.imshow(img_arr[x_min:x_max, y_min:y_max])
+            # plt.show()
+            # file.writelines(image_batch + '\n')
+
+    file.close()
+
 if __name__ == '__main__':
 
     # generate_one()
@@ -230,6 +276,11 @@ if __name__ == '__main__':
     # save_root = '/home/ty/data/VOS_train/gt'
     # split_VOS(all_file_root, test_root, save_root)
 
-    root = '/home/ty/data/VOS_train'
-    save_path = '/home/ty/data/VOS_train/train_VOS_seq_5f.txt'
-    generate_VOS_seq(root, 5, save_path)
+    # root = '/home/ty/data/VOS_train'
+    # save_path = '/home/ty/data/VOS_train/train_VOS_seq_5f.txt'
+    # generate_VOS_seq(root, 5, save_path)
+
+    seq_file_path = '/home/ty/data/video_saliency/train_all_seq_5f.txt'
+    root_path = '/home/ty/data/video_saliency/train_all_gt2_revised'
+    save_path = '/home/ty/data/video_saliency/train_all_seq_bbox_5f.txt'
+    generate_seq_bbx(seq_file_path, root_path, save_path)
